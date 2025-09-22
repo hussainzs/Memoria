@@ -1,3 +1,15 @@
+__pycache__/
+.venv/
+.env
+node_modules/
+dist/
+.DS_Store
+frontend/.next/
+frontend/out/
+backend/.mypy_cache/
+backend/.ruff_cache/
+pgdata/
+
 # Compiled class file
 *.class
 
