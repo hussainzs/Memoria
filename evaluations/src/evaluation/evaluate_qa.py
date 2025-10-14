@@ -9,6 +9,7 @@ import numpy as np
 
 
 model_zoo = {
+    'llama-3.2': ('llama3.2', 'local'),
     'llama-3.1-70b-instruct': ('meta-llama/Meta-Llama-3.1-70B-Instruct', 'local'),
     'gpt-4o-mini': ('gpt-4o-mini-2024-07-18', 'openai'),
     'gpt-4o': ('gpt-4o-2024-08-06', 'openai'),
@@ -64,8 +65,8 @@ if __name__ == '__main__':
         openai_api_key = os.getenv('OPENAI_API_KEY')
         openai_api_base = None
     else:
-        openai_api_key = "EMPTY"
-        openai_api_base = "http://localhost:8001/v1"
+        openai_api_key = "ollama"
+        openai_api_base = "http://localhost:11434/v1"
     
     metric_client = OpenAI(
         api_key=openai_api_key,
