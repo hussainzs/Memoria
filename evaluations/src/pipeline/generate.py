@@ -61,7 +61,8 @@ def prompt_agent(seed: str, prev_turns: List[Dict[str, str]], user_msg: str, ver
     # include the new user message we just got
     parts.append(f"[{len(prev_turns)+1}] USER: {user_msg.strip()}")
     parts.append(
-        "\nAct as the AGENT. Produce exactly ONE helpful, specific reply to the user."
+        "\nAct as the AGENT. Produce exactly ONE helpful, specific reply to the user. "
+        "Do NOT repeat the user's message."
         "\nAGENT:"
     )
     prompt = "\n".join(parts)
@@ -168,17 +169,21 @@ def ollama_call_model(prompt: str, model: str = "llama3.2") -> str:
 if __name__ == "__main__":
     random.seed(42)
 
-    eval_root = os.path.dirname(os.path.abspath(__file__))
-    seed_file = os.path.join(eval_root, "../../data_ref", "student_scores.csv")
+    eval_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    seed_file = os.path.join(eval_root, "data", "student_scores.csv")
+    SEED_TEXT = "You are a teacher with this information about your students."
 
     history = run_procedural_generation(
+        seed_text=SEED_TEXT,
         seed_file=seed_file,
+        bwor=4,
+        total_pairs=4,
         call_llm=ollama_call_model,
     )
 
     # pretty print
     for i, turn in enumerate(history, 1):
-        print(f"==========\n[{i:02d} {turn['role'].upper()}]: {turn['text']}\n")
+        print(f"============\n= {i:02d} {turn['role'].upper()} =\n============\n{turn['text']}\n")
 
     pairs = []
     tmp = []
