@@ -32,7 +32,8 @@
                 "2022": 3.0,
                 "2023": 3.0,
                 "2024": 4.0
-                }
+                },
+                "timestamp": "2025-11-09T12:00:00-05:00"
             }
         },
         {"input": "How does the trend of insect-resistant corn adoption in Iowa compare with that in Illinois over the same period (2000–2024)?",
@@ -71,7 +72,8 @@
                 "Decline": "Both states saw declines post-2006 due to transition to stacked-trait corn.",
                 "Stabilization": "After 2013, both fell below 5%, indicating minimal standalone Bt adoption.",
                 "Overall_Pattern": "Parallel trends with Iowa consistently slightly ahead."
-                }
+                },
+                "timestamp": "2025-11-09T12:00:01-05:00"
             }
         },
         {"input": "In which years did Iowa’s adoption rate of insect-resistant (Bt) corn grow the fastest, and how does that align with the rise of stacked (Bt + herbicide-tolerant) varieties?",
@@ -106,7 +108,8 @@
                     "In Iowa, Bt adoption peaked around 2004 (36%) then declined (35% in 2005 → 32% in 2006) consistent with farmers shifting away from Bt‐only toward stacked hybrids.",
                     "Therefore the period of fastest Bt‐only growth (early 2000s) aligns with the pre-stacked era; the slowdown aligns with the rise of stacked trait adoption."
                 ]
-                }
+                },
+                "timestamp": "2025-11-09T12:00:02-05:00"
             }
         }
     ], 
@@ -129,7 +132,8 @@
             "Once insect‐only resistance saturation was reached, incremental gains from Bt only lowered relative to stacks.",
             "Risk and yield protection advantages: stacked traits offered broader protection, which may reduce yield volatility under stress (drought/pest).",
             "Regulatory/management shifts (e.g., insect-resistance management, refuge requirements) may have steered usage toward stacks."
-            ]
+            ],
+            "timestamp": "2025-11-09T12:00:04-05:00"
         }
     }
 }

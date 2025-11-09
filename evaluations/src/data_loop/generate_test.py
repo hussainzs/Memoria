@@ -62,6 +62,7 @@ def build_prompt(file_contents: str, instruction: Optional[str] = None) -> str:
 	prompt += "Final answer:"
  
     # TODO: Add more complex prompt engineering per prompt chaining procedures
+    # Eg. everything under: https://docs.google.com/document/d/1e6vY6C0uPapvVouDKvOnlaN781MRldfVO5M8HlnM0aU/edit?tab=t.0
 	return prompt
 
 
@@ -81,16 +82,6 @@ def send_to_llm(prompt: str, *, model: str = "llama3.2", method: str = "ollama")
 			capture_output=True,
 		)
 		return result.stdout.decode().strip()
-
-	- OpenAI-compatible client (see `evaluations/src/generation/generate_test.py`):
-
-		from openai import OpenAI
-		client = OpenAI(base_url="http://localhost:11434/v1", api_key="ollama")
-		resp = client.chat.completions.create(
-			model=model,
-			messages=[{"role": "user", "content": prompt}],
-		)
-		return resp.choices[0].message.content
 
 	For now this uses the local `ollama` CLI via subprocess to run the
 	specified model. If `ollama` is not available in PATH or the model
