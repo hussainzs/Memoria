@@ -1,7 +1,7 @@
 """Simple runner that collects all evaluation data files.
 
 This imports the dynamic file-listing implemented in
-`evaluations.src.data_loop.data_files` and prints a summary.
+`evaluations.src.data_test_generation.data_files` and prints a summary.
 """
 
 from __future__ import annotations
@@ -11,11 +11,11 @@ from pathlib import Path
 
 # Ensure the repository root is on sys.path so `evaluations` can be imported
 # when this file is executed as a script. The repo root is three parents up
-# from this file: repo_root/evaluations/src/data_loop/main.py
+# from this file: repo_root/evaluations/src/data_test_generation/main.py
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from evaluations.src.data_loop import data_files
+from evaluations.src.data_test_generation import data_files
 
 
 def get_all_data_files() -> list[str]:

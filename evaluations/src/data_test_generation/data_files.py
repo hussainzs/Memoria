@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import List
 
 
-# The layout is: repo_root/evaluations/src/data_loop/data_files.py
+# The layout is: repo_root/evaluations/src/data_test_generation/data_files.py
 # so parents[2] is the `evaluations` directory and parents[3] is the repo root.
 _THIS_FILE = Path(__file__).resolve()
 _EVALUATIONS_DIR = _THIS_FILE.parents[2]
