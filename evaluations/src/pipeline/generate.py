@@ -2,14 +2,54 @@ import os, subprocess, json, shutil
 import random
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Callable
+from datetime import datetime, timedelta, timezone
 
 @dataclass
 class Turn:
     """single conversation turn; user message & agent reply"""
     user: str
     agent: Optional[str] = None
+    agent_reasoning: Optional[str] = None
+    timestamp_user: datetime = None
+    timestamp_agent: Optional[datetime] = None
 
 History = List[Turn]
+
+PR_FACT = 1.0
+PR_LONG_JUMP = 1.0
+
+def now_est() -> datetime:
+    return datetime.now(tz=timezone(timedelta(hours=-5))).replace(microsecond=0)
+
+def fmt_ts(dt: datetime) -> str:
+    """readable ISO-8601 with offset; 2025-10-24T01:23:45-05:00"""
+    return dt.isoformat()
+
+def _few_mins_dl() -> timedelta:
+    return timedelta(minutes=random.randint(1, 5), seconds=random.randint(0, 59))
+
+def _long_jump_dl() -> timedelta:
+    # pick one of: hours, days, weeks, months (approx via 30d)
+    choice = random.choice(["hours", "days", "weeks", "months"])
+    if choice == "hours":
+        return timedelta(hours=random.randint(2, 12), seconds=random.randint(0, 59))
+    if choice == "days":
+        return timedelta(days=random.randint(1, 6), seconds=random.randint(0, 59))
+    if choice == "weeks":
+        return timedelta(weeks=random.randint(1, 4), seconds=random.randint(0, 59))
+    # months ~ 30d chunks
+    return timedelta(days=30 * random.randint(1, 3), seconds=random.randint(0, 59))
+
+def next_user_time(prev_user_time: datetime, temporal_reasoning: bool = False) -> datetime:
+    """Advance the 'user' clock. Normally a few minutes. If temporal_reasoning, occasionally jump a longer interval."""
+    if not temporal_reasoning:
+        return prev_user_time + _few_mins_dl()
+    if random.random() < PR_LONG_JUMP:
+        return prev_user_time + _long_jump_dl()
+    return prev_user_time + _few_mins_dl()
+
+def agent_reply_time(user_time: datetime) -> datetime:
+    return user_time + timedelta(seconds=random.randint(1, 59))
 
 def print_sep(text):
     width = shutil.get_terminal_size((80, 20)).columns
@@ -37,49 +77,66 @@ def read_seed(seed_text: Optional[str] = None, seed_file: Optional[str] = None) 
 
 
 def render_history(history: History) -> str:
-    """convert a list of {"role": "...", "text": "..."} into a single history block for prompts"""
+    """Convert a list of Turns into a single history block for prompts (with timestamps)."""
     if not history:
         return ""
     lines = ["\nConversation so far (oldest to newest):"]
     for i, t in enumerate(history, 1):
-        lines.append(f"[{i}] USER: {t.user.strip()}")
+        ut = t.timestamp_user or now_est()
+        lines.append(f"[{i}] USER @ {fmt_ts(ut)}:\n{t.user.strip()}\n\n")
+
         if t.agent is not None and t.agent.strip():
-            lines.append(f"[{i}] AGENT: {t.agent.strip()}")
+            at = t.timestamp_agent or ut
+            lines.append(f"[{i}] AGENT @ {fmt_ts(at)}:\n{t.agent.strip()}\n\n")
     return "\n".join(lines)
 
-def prompt_user(seed: str, history_text: str, seed_file=False, verbose=False) -> str:
-    """On the very first turn (no history), instruct the USER to send the base data to the agent."""
+def prompt_user(seed: str, history_text: str, seed_file=False, verbose=False, temporal_reasoning=False) -> str:
+    """
+    On the very first turn (no history), instruct the USER to send the base data to the agent.
+    If temporal_reasoning=True, nudge the USER to occasionally mention a specific time-bound event.
+    """
     first_turn = (not history_text)
-    parts = [
-        "You are a USER seeking help from an agent.",
-        "You will be given base data and the conversation so far (if any).\nBase data:",
-        seed.strip(),
-    ] if seed_file else [
-        "You are a USER seeking help from an agent.",
-        "You will be given the conversation so far (if any).",
-        seed.strip(),
-    ]
-    
-    if history_text: parts.append(history_text)
+    parts = (
+        [
+            "You are a USER seeking help from an AI agent.",
+            "You will be given base data and the conversation so far (if any).\nBase data:",
+            seed.strip(),
+        ]
+        if seed_file else
+        [
+            "You are a USER seeking help from an AI agent.",
+            "You will be given the conversation so far (if any).",
+            seed.strip(),
+        ]
+    )
+    if history_text:
+        parts.append(history_text)
 
     if first_turn:
         parts.append(
-            "\nThis is the FIRST user turn. Produce exactly ONE user message that:\n"
-            "1) Briefly greets the agent and states what you want them to do, and\n"
-            "2) Includes the BASE DATA verbatim so the agent can access it.\n"
-            "Do not add any other context blocks besides your single message.\n"
-            "USER:"
-        ) if seed_file else parts.append(
-            "\nThis is the FIRST user turn. Produce exactly ONE user message that:\n"
-            "1) Briefly greets the agent and states what you want them to do.\n"
-            "Do not add any other context blocks besides your single message.\n"
-            "USER:"
+            (
+                "\nThis is the FIRST user turn. Produce exactly ONE user message that:\n"
+                "1) Briefly greets the agent and states what you want them to do, and\n"
+                "2) Includes the BASE DATA verbatim so the agent can access it.\n"
+                "Do not add any other context blocks besides your single message.\n"
+                "USER:"
+            ) if seed_file else
+            (
+                "\nThis is the FIRST user turn. Produce exactly ONE user message that:\n"
+                "1) Briefly greets the agent and states what you want them to do.\n"
+                "Do not add any other context blocks besides your single message.\n"
+                "USER:"
+            )
         )
     else:
+        extra_temporal_note = (
+            "\nAlso mention a specific real-time event (e.g., \"Just now, I did X\", but use more varied word choice)."
+            if random.random() < PR_FACT else ""
+        )
         parts.append(
-            "\nAct as the USER. Produce exactly ONE user message that logically continues the conversation, "
-            "refers to existing info when helpful, and can be answered by the agent."
-            "\nUSER:"
+            "\nNow, act as the USER. Produce exactly ONE user message that logically continues the conversation, "
+            "refers to existing info when helpful, and can be answered by the agent. Do not address the agent by name."
+            f"{extra_temporal_note}\nUSER:"
         )
 
     prompt = "\n".join(parts)
@@ -95,9 +152,28 @@ def prompt_agent(seed: str, history_text_with_user: str, verbose=False) -> str:
         parts.append(history_text_with_user)
 
     parts.append(
-        "\nAct as the AGENT. Produce exactly ONE helpful, specific reply to the user. "
+        "\nNow, act as the AGENT. Produce exactly ONE helpful, specific reply to the user. "
         "Do NOT repeat the user's message."
         "\nAGENT:"
+    )
+    prompt = "\n".join(parts)
+    if verbose:
+        print_sep(prompt)
+    return prompt
+
+def prompt_agent_reasoning(history_text_with_user: str, agent_reply: str, verbose=False) -> str:
+    parts = [
+        "You are writing a brief rationale that explains why the agent reply makes sense. ",
+        "Keep it concise, high-level, and non-sensitive. No step-by-step derivations; no model internals. ",
+        "No introduction or conclusion is necessary. Do not use first- or third-person point of view. ",
+        "Output a short paragraph (≤100 words).",
+    ]
+    if history_text_with_user:
+        parts.append(history_text_with_user)
+    parts.append(
+        "\nReply to explain:\n"
+        f"{agent_reply.strip()}\n"
+        "\nNow provide the rationale only:"
     )
     prompt = "\n".join(parts)
     if verbose:
@@ -139,6 +215,7 @@ def run_procedural_generation(
     bwor: int = 4,            # PHASE 1 size and also phase-2 bootstrap width
     total_pairs: int = 8,    # number of (user, agent) pairs to produce TOTAL
     call_llm: Optional[Callable[[str], str]] = None,
+    temporal_reasoning: bool = False,
 ):
     """
     Phase 1:
@@ -154,40 +231,58 @@ def run_procedural_generation(
     seed = read_seed(seed_text, seed_file)
 
     history: History = []
+    current_user_time = now_est()
 
+    # PHASE 1: build with full context
     pairs = 0
     while pairs < bwor:
         base_hist_str = render_history(history)
 
-        # USER turn (gets seed)
-        u_prompt = prompt_user(seed, base_hist_str, seed_file, verbose=True)
+        # USER turn
+        u_prompt = prompt_user(seed, base_hist_str, seed_file, verbose=True, temporal_reasoning=temporal_reasoning)
         u_text = call_llm(u_prompt).strip()
-        history.append(Turn(user=u_text))  # pending agent
+        user_ts = current_user_time
+        history.append(Turn(user=u_text, timestamp_user=user_ts))
 
-        # AGENT turn: sees ONLY conversation + the new user message
+        # AGENT turn: sees only conversation + new user
         hist_with_user = render_history(history)
         a_prompt = prompt_agent("", hist_with_user, verbose=True)
         a_text = call_llm(a_prompt).strip()
         history[-1].agent = a_text
+        history[-1].timestamp_agent = agent_reply_time(user_ts)
+        
+        # REASONING (second pass)
+        r_prompt = prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
+        r_text = call_llm(r_prompt).strip()
+        history[-1].agent_reasoning = r_text
 
+        current_user_time = next_user_time(user_ts, temporal_reasoning=temporal_reasoning)
         pairs += 1
 
-    # PHASE 2: one bootstrapped pair at a time (seed still ONLY to USER)
+    # PHASE 2: one bootstrapped pair at a time
     while pairs < total_pairs:
         ctx: History = build_phase2_context(history, bwor=bwor, min_tail=2)
         base_hist_str = render_history(ctx)
 
         # USER
-        u_prompt = prompt_user(seed, base_hist_str, seed_file, verbose=False)
+        u_prompt = prompt_user(seed, base_hist_str, seed_file, verbose=False, temporal_reasoning=temporal_reasoning)
         u_text = call_llm(u_prompt).strip()
-        history.append(Turn(user=u_text))  # pending agent
+        user_ts = current_user_time
+        history.append(Turn(user=u_text, timestamp_user=user_ts))
 
-        # AGENT: same context + newly added user; NO seed
-        hist_with_user = render_history(ctx + [Turn(user=u_text)])
+        # AGENT: same context + newly added user
+        hist_with_user = render_history(ctx + [Turn(user=u_text, timestamp_user=user_ts)])
         a_prompt = prompt_agent("", hist_with_user, verbose=False)
         a_text = call_llm(a_prompt).strip()
         history[-1].agent = a_text
+        history[-1].timestamp_agent = agent_reply_time(user_ts)
+        
+        # === REASONING (second pass)
+        r_prompt = prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
+        r_text = call_llm(r_prompt).strip()
+        history[-1].agent_reasoning = r_text
 
+        current_user_time = next_user_time(user_ts, temporal_reasoning=temporal_reasoning)
         pairs += 1
 
     return history
@@ -214,7 +309,9 @@ if __name__ == "__main__":
     # seed_file = os.path.join(eval_root, "data", "student_scores.csv")
     # SEED_TEXT = "You are a teacher with this information about your students."
     seed_file = None
-    SEED_TEXT = "You are a student asking an AI tutor for short explanations about technical topics.  Keep each question concise and specific."
+    SEED_TEXT = "You are a student asking an AI tutor for short explanations about big-O notation.  Keep each question concise and specific."
+
+    TEMPORAL_REASONING = True
 
     history = run_procedural_generation(
         seed_text=SEED_TEXT,
@@ -222,6 +319,7 @@ if __name__ == "__main__":
         bwor=4,
         total_pairs=4,
         call_llm=ollama_call_model,
+        temporal_reasoning=TEMPORAL_REASONING,
     )
 
     # pretty print
@@ -236,8 +334,24 @@ if __name__ == "__main__":
         print(B * WIDTH)
         print(header)
         print(B * WIDTH)
-        print(f"USER:\n{turn.user}\n")
-        print(f"AGENT:\n{turn.agent or ''}\n")
+
+        def section_header(name: str) -> str:
+            t = f" {name}: "
+            pad2 = WIDTH - len(t)
+            left = pad2 // 2
+            right = pad2 - left
+            return B * left + t + B * right
+
+        print(section_header("USER"))
+        uts = fmt_ts(turn.timestamp_user) if turn.timestamp_user else "NA"
+        print(f"[{uts}]\n{turn.user.strip()}\n")
+
+        print(section_header("AGENT"))
+        ats = fmt_ts(turn.timestamp_agent) if turn.timestamp_agent else "NA"
+        print(f"[{ats}]\n{(turn.agent or '').strip()}\n")
+        
+        print(section_header("AGENT REASONING"))
+        print(f"[{ats}]\n{(turn.agent_reasoning or '').strip()}\n")
 
     pairs = []
     tmp = []
@@ -247,11 +361,62 @@ if __name__ == "__main__":
             pairs.append(tmp)
             tmp = []
 
-    ui_path = os.path.join(eval_root, "idk", "ui.json")
-    os.makedirs(os.path.dirname(ui_path), exist_ok=True)
-    ui: Dict[int, Dict[str, str]] = {
-        i: {"user": t.user, "agent": t.agent or ""}
+    # single ua save
+    ua_path = os.path.join(eval_root, "src", "pipeline", "ua.json")
+    os.makedirs(os.path.dirname(ua_path), exist_ok=True)
+    ua: Dict[int, Dict[str, str]] = {
+        i: {
+            "user": t.user,
+            "agent": t.agent or "",
+            "agent_reasoning": t.agent_reasoning or "",
+            "timestamp_user": fmt_ts(t.timestamp_user) if t.timestamp_user else "",
+            "timestamp_agent": fmt_ts(t.timestamp_agent) if t.timestamp_agent else "",
+        }
         for i, t in enumerate(history)
     }
-    with open(ui_path, "w", encoding="utf-8") as f:
-        json.dump(ui, f, indent=2, ensure_ascii=False)
+    with open(ua_path, "w", encoding="utf-8") as f:
+        json.dump(ua, f, indent=2, ensure_ascii=False)
+
+    # schema save, blank with TODOs
+    messages = []
+    for t in history:
+        messages.append({
+            "role": "user",
+            "content": t.user,
+            "timestamp": fmt_ts(t.timestamp_user) if t.timestamp_user else ""
+        })
+        messages.append({
+            "role": "agent",
+            "content": (t.agent or ""),
+            "reasoning": (t.agent_reasoning or ""),
+            "timestamp": fmt_ts(t.timestamp_agent) if t.timestamp_agent else ""
+        })
+    
+    ts_list = [x for x in (
+        [h.timestamp_user for h in history] +
+        [h.timestamp_agent for h in history]
+    ) if x is not None]
+    start_ts = fmt_ts(min(ts_list)) if ts_list else "TODO"
+    end_ts = fmt_ts(max(ts_list)) if ts_list else "TODO"
+
+    out_json = [
+        {
+            "history_id": "TODO",
+            "history_type": ["TODO"],
+            "haystack_session_ids": ["TODO"],
+            "haystack_sessions": [
+                {
+                    "session_id": "TODO",
+                    "dataref": f"{seed_file}",
+                    "start_timestamp": start_ts,
+                    "end_timestamp": end_ts,
+                    "messages": messages
+                }
+            ],
+            "questions": ["TODO"],
+        }
+    ]
+
+    schema_path = os.path.join(eval_root, "src", "pipeline", "schema.json")
+    with open(schema_path, "w", encoding="utf-8") as f:
+        json.dump(out_json, f, indent=2, ensure_ascii=False)
