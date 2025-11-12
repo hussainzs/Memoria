@@ -46,6 +46,20 @@ Configured under **Advanced Settings** using the same setup as ReasoningBank:
 
 This setup allows hybrid search — combining BM25 for keyword-level matching with cosine-based dense retrieval for semantic relevance.
 
+**Format to configure single-analyzer with stop-word removal:**
+```json
+{
+    "tokenizer": "standard",
+    "filter": [
+        "lowercase",
+        {
+            "type": "stop",
+            "stop_words": ["_english_"]
+        }
+    ]
+}
+```
+
 ---
 
 ### Additional Notes
