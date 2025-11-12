@@ -69,3 +69,20 @@ This setup allows hybrid search — combining BM25 for keyword-level matching wi
 * **Shards/Partitions:** Defaults used.
 
 
+**JSON configuration to insert to GraphEmbeddings Collection:**
+```json
+{
+  "collectionName": "GraphEmbeddings",
+  "data": [
+    {
+      "text": "i8ko1g942z",
+      "pointer_to_node": "3vkfdgs9ekq",
+      "dense_vector": [
+        *3072 dim embedding vector*
+      ]
+    }
+  ]
+}
+```
+
+
