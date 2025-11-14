@@ -3,6 +3,7 @@ import random
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Callable
 from datetime import datetime, timedelta, timezone
+import time
 
 @dataclass
 class Turn:
@@ -15,8 +16,12 @@ class Turn:
 
 History = List[Turn]
 
-PR_FACT = 1.0
-PR_LONG_JUMP = 1.0
+CONTEXT_MSGS_LEN = 10
+TOTAL_MSGS_LEN = 20
+
+PR_FACT = 0.4
+PR_LONG_JUMP = 0.3
+TEMPORAL_REASONING = True
 
 def now_est() -> datetime:
     return datetime.now(tz=timezone(timedelta(hours=-5))).replace(microsecond=0)
@@ -90,44 +95,35 @@ def render_history(history: History) -> str:
             lines.append(f"[{i}] AGENT @ {fmt_ts(at)}:\n{t.agent.strip()}\n\n")
     return "\n".join(lines)
 
+USER_GUIDE = """
+Write ONE user message only.
+Hard rules:
+- Do NOT reference any kind of material unless it appears verbatim in prior conversation.
+- You MAY invent some numeric values if necessary.
+"""
+
 def prompt_user(seed: str, history_text: str, seed_file=False, verbose=False, temporal_reasoning=False) -> str:
-    """
-    On the very first turn (no history), instruct the USER to send the base data to the agent.
-    If temporal_reasoning=True, nudge the USER to occasionally mention a specific time-bound event.
-    """
     first_turn = (not history_text)
     parts = (
         [
-            "You are a USER seeking help from an AI agent.",
+            "You are the USER in a dialogue with an AI agent."
             "You will be given base data and the conversation so far (if any).\nBase data:",
             seed.strip(),
+            USER_GUIDE
         ]
         if seed_file else
         [
-            "You are a USER seeking help from an AI agent.",
+            "You are the USER in a dialogue with an AI agent."
             "You will be given the conversation so far (if any).",
             seed.strip(),
+            USER_GUIDE
         ]
     )
     if history_text:
         parts.append(history_text)
 
     if first_turn:
-        parts.append(
-            (
-                "\nThis is the FIRST user turn. Produce exactly ONE user message that:\n"
-                "1) Briefly greets the agent and states what you want them to do, and\n"
-                "2) Includes the BASE DATA verbatim so the agent can access it.\n"
-                "Do not add any other context blocks besides your single message.\n"
-                "USER:"
-            ) if seed_file else
-            (
-                "\nThis is the FIRST user turn. Produce exactly ONE user message that:\n"
-                "1) Briefly greets the agent and states what you want them to do.\n"
-                "Do not add any other context blocks besides your single message.\n"
-                "USER:"
-            )
-        )
+        parts.append("FIRST TURN: Produce ONE message to start the conversation and set a context.\nUSER:")
     else:
         extra_temporal_note = (
             "\nAlso mention a specific real-time event (e.g., \"Just now, I did X\", but use more varied word choice)."
@@ -135,7 +131,7 @@ def prompt_user(seed: str, history_text: str, seed_file=False, verbose=False, te
         )
         parts.append(
             "\nNow, act as the USER. Produce exactly ONE user message that logically continues the conversation, "
-            "refers to existing info when helpful, and can be answered by the agent. Do not address the agent by name."
+            "refers to existing info when helpful, and can be answered by the agent."
             f"{extra_temporal_note}\nUSER:"
         )
 
@@ -153,7 +149,7 @@ def prompt_agent(seed: str, history_text_with_user: str, verbose=False) -> str:
 
     parts.append(
         "\nNow, act as the AGENT. Produce exactly ONE helpful, specific reply to the user. "
-        "Do NOT repeat the user's message."
+        "Do NOT repeat the user's message.  Do not fabricate data."
         "\nAGENT:"
     )
     prompt = "\n".join(parts)
@@ -161,25 +157,81 @@ def prompt_agent(seed: str, history_text_with_user: str, verbose=False) -> str:
         print_sep(prompt)
     return prompt
 
+
+REASONER_VALID = """
+Write ≤80 words. One concise paragraph.
+Do NOT include phrases like "The agent made this reply because", "This reasoning", or "Based on".
+Start immediately with the substantive explanation of how the reply addresses the user's message.
+Focus on the key reasoning steps, decisions, or assumptions only.
+No preamble, no quotes, no meta-commentary.  Output only the reasoning text.
+"""
+
 def prompt_agent_reasoning(history_text_with_user: str, agent_reply: str, verbose=False) -> str:
     parts = [
-        "You are writing a brief rationale that explains why the agent reply makes sense. ",
-        "Keep it concise, high-level, and non-sensitive. No step-by-step derivations; no model internals. ",
-        "No introduction or conclusion is necessary. Do not use first- or third-person point of view. ",
-        "Output a short paragraph (≤100 words).",
+        REASONER_VALID,
+        "\nConversation context (with indices):\n",
+        history_text_with_user,
+        "\nAgent reply to justify:\n",
+        agent_reply,
+        "\nReasoning (why this reply fits the user's inputs):"
     ]
-    if history_text_with_user:
-        parts.append(history_text_with_user)
-    parts.append(
-        "\nReply to explain:\n"
-        f"{agent_reply.strip()}\n"
-        "\nNow provide the rationale only:"
-    )
     prompt = "\n".join(parts)
     if verbose:
         print_sep(prompt)
     return prompt
 
+def ask_review(kind: str, text: str) -> str:
+    """
+    Show a generated artifact and ask for action.
+    """
+    print_sep(f"{kind} — REVIEW")
+    print(text.strip(), "\n")
+    while True:
+        choice = input("[Enter]=accept  (r)egen  (e)dit-prompt  (q)uit > ").strip().lower()
+        if choice == "":
+            return "accept"
+        if choice in {"r", "regen"}:
+            return "regen"
+        if choice in {"e", "edit"}:
+            return "edit"
+        if choice in {"q", "quit"}:
+            return "quit"
+        print("Please choose: Enter / r / e / q")
+
+def gen_with_review(
+    label: str,
+    build_prompt: Callable[[], str],
+    call_llm: Callable[[str], str],
+    max_regens: int = 3,
+) -> tuple[str, str]:
+    """
+    Generate text with a user-in-the-loop review cycle.
+    Returns (final_text, final_prompt).
+    """
+    prompt = build_prompt()
+    attempts = 0
+    while True:
+        text = call_llm(prompt).strip()
+        action = ask_review(label, text)
+        if action == "accept":
+            return text, prompt
+        if action == "quit":
+            raise KeyboardInterrupt(f"Aborted at step: {label}")
+        if action == "edit":
+            print_sep(f"{label} — EDIT PROMPT")
+            print("Current prompt:\n", prompt, "\n")
+            print("Enter the new prompt. Finish with an empty line:")
+            lines = []
+            while True:
+                ln = input()
+                if ln == "":
+                    break
+                lines.append(ln)
+            prompt = "\n".join(lines).strip() or prompt
+            continue
+        # if action == 'regen'
+        attempts += 1
+        continue
 
 def build_phase2_context(
     history: History,
@@ -206,7 +258,7 @@ def build_phase2_context(
     idxs = sorted(random.sample(range(tail_start), n_ua_samples))
     ua_sampled: History = [history[i] for i in idxs]
 
-    return ua_sampled + ua_tail
+    return idxs + list(range(tail_start, n)), ua_sampled + ua_tail
 
 
 def run_procedural_generation(
@@ -232,62 +284,84 @@ def run_procedural_generation(
 
     history: History = []
     current_user_time = now_est()
+    
+    overall_start = time.perf_counter()
 
     # PHASE 1: build with full context
     pairs = 0
     while pairs < bwor:
+        iter_start = time.perf_counter()
+
         base_hist_str = render_history(history)
 
-        # USER turn
-        u_prompt = prompt_user(seed, base_hist_str, seed_file, verbose=True, temporal_reasoning=temporal_reasoning)
-        u_text = call_llm(u_prompt).strip()
+        # USER
+        def build_user_prompt():
+            return prompt_user(seed, base_hist_str, seed_file, verbose=True, temporal_reasoning=temporal_reasoning)
+        u_text, _u_prompt = gen_with_review("USER", build_user_prompt, call_llm, max_regens=3)
         user_ts = current_user_time
         history.append(Turn(user=u_text, timestamp_user=user_ts))
 
-        # AGENT turn: sees only conversation + new user
+        # AGENT
         hist_with_user = render_history(history)
-        a_prompt = prompt_agent("", hist_with_user, verbose=True)
-        a_text = call_llm(a_prompt).strip()
+        def build_agent_prompt():
+            return prompt_agent("", hist_with_user, verbose=False)
+        a_text, _a_prompt = gen_with_review("AGENT", build_agent_prompt, call_llm, max_regens=3)
         history[-1].agent = a_text
         history[-1].timestamp_agent = agent_reply_time(user_ts)
-        
-        # REASONING (second pass)
-        r_prompt = prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
-        r_text = call_llm(r_prompt).strip()
+
+        # REASONING
+        def build_reason_prompt():
+            return prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
+        r_text, _r_prompt = gen_with_review("AGENT REASONING", build_reason_prompt, call_llm, max_regens=3)
         history[-1].agent_reasoning = r_text
 
         current_user_time = next_user_time(user_ts, temporal_reasoning=temporal_reasoning)
         pairs += 1
+
+        iter_elapsed = time.perf_counter() - iter_start
+        print(f"phase 1 full context pair {pairs} done in {iter_elapsed:.2f}s")
+
 
     # PHASE 2: one bootstrapped pair at a time
     while pairs < total_pairs:
-        ctx: History = build_phase2_context(history, bwor=bwor, min_tail=2)
+        iter_start = time.perf_counter()
+
+        idxs, ctx = build_phase2_context(history, bwor=bwor, min_tail=2)
         base_hist_str = render_history(ctx)
 
         # USER
-        u_prompt = prompt_user(seed, base_hist_str, seed_file, verbose=False, temporal_reasoning=temporal_reasoning)
-        u_text = call_llm(u_prompt).strip()
+        def build_user_prompt():
+            return prompt_user(seed, base_hist_str, seed_file, verbose=False, temporal_reasoning=temporal_reasoning)
+        u_text, _u_prompt = gen_with_review("USER", build_user_prompt, call_llm, max_regens=3)
         user_ts = current_user_time
         history.append(Turn(user=u_text, timestamp_user=user_ts))
 
-        # AGENT: same context + newly added user
+        # AGENT
         hist_with_user = render_history(ctx + [Turn(user=u_text, timestamp_user=user_ts)])
-        a_prompt = prompt_agent("", hist_with_user, verbose=False)
-        a_text = call_llm(a_prompt).strip()
+        def build_agent_prompt():
+            return prompt_agent("", hist_with_user, verbose=False)
+        a_text, _a_prompt = gen_with_review("AGENT", build_agent_prompt, call_llm, max_regens=3)
         history[-1].agent = a_text
         history[-1].timestamp_agent = agent_reply_time(user_ts)
-        
-        # === REASONING (second pass)
-        r_prompt = prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
-        r_text = call_llm(r_prompt).strip()
+
+        # REASONING
+        def build_reason_prompt():
+            return prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
+        r_text, _r_prompt = gen_with_review("AGENT REASONING", build_reason_prompt, call_llm, max_regens=3)
         history[-1].agent_reasoning = r_text
 
         current_user_time = next_user_time(user_ts, temporal_reasoning=temporal_reasoning)
         pairs += 1
 
+        iter_elapsed = time.perf_counter() - iter_start
+        print(f"phase 2 bootstrap context pair {pairs} done in {iter_elapsed:.2f}s; {idxs=}")
+
+    total_elapsed = time.perf_counter() - overall_start
+    print(f"total generation time for {pairs} pairs: {total_elapsed:.2f}s")
+
     return history
 
-def ollama_call_model(prompt: str, model: str = "llama3.2") -> str:
+def ollama_call_model(prompt: str, model: str = "llama3.1") -> str:
     """Run LLM and return generated text."""
     result = subprocess.run(
         ["ollama", "run", "--verbose", model],
@@ -309,15 +383,14 @@ if __name__ == "__main__":
     # seed_file = os.path.join(eval_root, "data", "student_scores.csv")
     # SEED_TEXT = "You are a teacher with this information about your students."
     seed_file = None
-    SEED_TEXT = "You are a student asking an AI tutor for short explanations about big-O notation.  Keep each question concise and specific."
-
-    TEMPORAL_REASONING = True
+    SEED_TEXT =\
+        "You are a sales analyst who wants to review and improve sales performance."
 
     history = run_procedural_generation(
         seed_text=SEED_TEXT,
         seed_file=seed_file,
-        bwor=4,
-        total_pairs=4,
+        bwor=CONTEXT_MSGS_LEN,
+        total_pairs=TOTAL_MSGS_LEN,
         call_llm=ollama_call_model,
         temporal_reasoning=TEMPORAL_REASONING,
     )
@@ -325,33 +398,34 @@ if __name__ == "__main__":
     # pretty print
     WIDTH = 30
     B = "#"
-    for i, turn in enumerate(history, 1):
-        title = f" {i:02d} TURN "
-        pad = WIDTH - len(title)
-        side = max(pad, 0) // 2
-        header = B * side + title + B * (pad - side)
+    if False:
+        for i, turn in enumerate(history, 1):
+            title = f" {i:02d} TURN "
+            pad = WIDTH - len(title)
+            side = max(pad, 0) // 2
+            header = B * side + title + B * (pad - side)
 
-        print(B * WIDTH)
-        print(header)
-        print(B * WIDTH)
+            print(B * WIDTH)
+            print(header)
+            print(B * WIDTH)
 
-        def section_header(name: str) -> str:
-            t = f" {name}: "
-            pad2 = WIDTH - len(t)
-            left = pad2 // 2
-            right = pad2 - left
-            return B * left + t + B * right
+            def section_header(name: str) -> str:
+                t = f" {name}: "
+                pad2 = WIDTH - len(t)
+                left = pad2 // 2
+                right = pad2 - left
+                return B * left + t + B * right
 
-        print(section_header("USER"))
-        uts = fmt_ts(turn.timestamp_user) if turn.timestamp_user else "NA"
-        print(f"[{uts}]\n{turn.user.strip()}\n")
+            print(section_header("USER"))
+            uts = fmt_ts(turn.timestamp_user) if turn.timestamp_user else "NA"
+            print(f"[{uts}]\n{turn.user.strip()}\n")
 
-        print(section_header("AGENT"))
-        ats = fmt_ts(turn.timestamp_agent) if turn.timestamp_agent else "NA"
-        print(f"[{ats}]\n{(turn.agent or '').strip()}\n")
-        
-        print(section_header("AGENT REASONING"))
-        print(f"[{ats}]\n{(turn.agent_reasoning or '').strip()}\n")
+            print(section_header("AGENT"))
+            ats = fmt_ts(turn.timestamp_agent) if turn.timestamp_agent else "NA"
+            print(f"[{ats}]\n{(turn.agent or '').strip()}\n")
+            
+            print(section_header("AGENT REASONING"))
+            print(f"[{ats}]\n{(turn.agent_reasoning or '').strip()}\n")
 
     pairs = []
     tmp = []
