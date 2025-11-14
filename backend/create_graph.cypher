@@ -693,6 +693,76 @@ SET n.text = 'Findings: 37 SKUs show steepened own-price elasticity; 11 SKUs fli
     n.analysis_types = ['hierarchical_regression','drift_detection','competitor_analysis'],
     n.metrics = ['num_skus_steeper','num_sign_flips','variance_cluster_count'];
 
+
+// ===========================================================
+// Parent 3 — Conversation 3.1
+// “Price Elasticity Drift Check” (Initiator: Employee)
+// conv_id: 2025-11-12_WMT_P3_C31
+// ===========================================================
+
+// UserRequest
+MERGE (n:UserRequest {id:'N3101'})
+SET n.text = 'Analyst suspects elasticity drift post-inflation; requests re-fit of elasticity curves, cross-price checks vs. competitor, and diagnostic report on sign flips/variance.',
+    n.conv_id = '2025-11-12_WMT_P3_C31',
+    n.ingestion_time = '2025-11-12T16:35:00-05:00',
+    n.update_time = '2025-11-12T16:35:00-05:00',
+    n.embedding_id = 'emb_N3101',
+    n.tags = ['elasticity','drift','post_inflation','diagnostics','cross_price','competitor'],
+    n.reasoning_pointer_ids = ['RB-P3-31A','RB-P3-31B','RB-P3-31C'],
+    n.user_role = 'Pricing Analyst',
+    n.user_id = 'u_2041';
+
+// DataSource: Model object
+MERGE (n:DataSource {id:'N3102'})
+SET n.text = 'Price_Elasticity_Model_v5.pkl — prior fitted model artifacts (coefficients, priors, shrinkage parameters, SKU hierarchy).',
+    n.conv_id = '2025-11-12_WMT_P3_C31',
+    n.ingestion_time = '2025-11-12T16:35:03-05:00',
+    n.update_time = '2025-11-12T16:35:03-05:00',
+    n.embedding_id = 'emb_N3102',
+    n.tags = ['model','pickle','elasticity','hierarchical','priors'],
+    n.reasoning_pointer_ids = ['RB-P3-31B'],
+    n.source_type = 'pkl',
+    n.doc_pointer = 's3://pricing/models/Price_Elasticity_Model_v5.pkl',
+    n.relevant_parts = 'objects: coef_table, sku_map, shrinkage_priors, fit_summary';
+
+// DataSource: Promo history
+MERGE (n:DataSource {id:'N3103'})
+SET n.text = 'Promo_History_Jan-Apr.csv — Date, SKU, DiscountPct, Units_Sold, BasePrice, CompetitorPrice, Channel; includes flags for promo overlap and post-promo dips.',
+    n.conv_id = '2025-11-12_WMT_P3_C31',
+    n.ingestion_time = '2025-11-12T16:35:05-05:00',
+    n.update_time = '2025-11-12T16:35:05-05:00',
+    n.embedding_id = 'emb_N3103',
+    n.tags = ['promo','history','csv','competitor_price','overlap','post_promo_dip'],
+    n.reasoning_pointer_ids = ['RB-P3-31A'],
+    n.source_type = 'csv',
+    n.doc_pointer = 's3://pricing/history/Promo_History_Jan-Apr.csv',
+    n.relevant_parts = 'columns: date, sku, price, discount_pct, competitor_price, units, channel, overlap_flag, post_dip_flag';
+
+// AgentAction: Re-fit + diagnostics
+MERGE (n:AgentAction {id:'N3104'})
+SET n.text = 'Re-fit hierarchical elasticity with rolling windows; run sign-flip scan, influence diagnostics, cross-price stability vs. top competitor; produce SKU/subcategory variance report.',
+    n.conv_id = '2025-11-12_WMT_P3_C31',
+    n.ingestion_time = '2025-11-12T16:35:10-05:00',
+    n.update_time = '2025-11-12T16:35:10-05:00',
+    n.embedding_id = 'emb_N3104',
+    n.tags = ['refit','diagnostics','hierarchical','cross_price','variance'],
+    n.reasoning_pointer_ids = ['RB-P3-31A','RB-P3-31B'],
+    n.status = 'complete',
+    n.parameter_field = '{ "window":"8w_rolling", "hierarchy":["sku","subcategory","category"], "diag":["sign_flip","influence","hausman"], "competitor":"TopRival" }';
+
+// AgentAnswer: Findings
+MERGE (n:AgentAnswer {id:'N3105'})
+SET n.text = 'Findings: 37 SKUs show steepened own-price elasticity; 11 SKUs flipped cross-price sign vs. TopRival. High-variance tails clustered in low-volume SKUs with sparse promo history. Recommendation: hold prices on trip-drivers; schedule controlled pilots for 12 flagged SKUs before broad repricing.',
+    n.conv_id = '2025-11-12_WMT_P3_C31',
+    n.ingestion_time = '2025-11-12T16:35:14-05:00',
+    n.update_time = '2025-11-12T16:35:14-05:00',
+    n.embedding_id = 'emb_N3105',
+    n.tags = ['findings','elasticity_drift','sign_flip','pilot_recommendation','trip_drivers'],
+    n.reasoning_pointer_ids = ['RB-P3-31C'],
+    n.analysis_types = ['hierarchical_regression','drift_detection','competitor_analysis'],
+    n.metrics = ['num_skus_steeper','num_sign_flips','variance_cluster_count'];
+
+
 // Edges (3.1)
 MATCH (u:UserRequest {id:'N3101'}),(d1:DataSource {id:'N3102'})
 MERGE (u)-[r:RELATES {id:'E3411'}]->(d1)
