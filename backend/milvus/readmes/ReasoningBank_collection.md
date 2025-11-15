@@ -16,7 +16,7 @@ The **ReasoningBank** collection in Zilliz Cloud (Milvus). Optimized for **hybri
 | -------------------------- | ------------------------ | ------------------ | --------------------------------------------------------------------------------- |
 | `rb_id`                    | `INT64`                  | Auto ID, PK        | Auto-generated ID for each entry.                                                 |
 | `key_lesson_vector`        | `FLOAT_VECTOR(1536)`     | —                  | Dense embedding of `key_lesson` using `text-embedding-3-small`.                   |
-| `key_lesson`               | `VARCHAR(65535)`         | Max 65,535 chars   | Raw lesson text for readability or re-embedding.                                  |
+| `key_lesson`               | `VARCHAR(65535)`         | Max 65,535 chars   | Raw lesson text for readability or embedding.                                  |
 | `context_to_prefer_vector` | `FLOAT_VECTOR(1536)`     | —                  | Dense embedding of contextual to prefer using `text-embedding-3-small`.           |
 | `context_to_prefer`        | `VARCHAR(65535)`         | Max 65,535 chars   | Natural language context describing applicability.                                |
 | `context_sparse_vector`    | `SPARSE_FLOAT_VECTOR`    | —                  | BM25 sparse vector generated from `context_to_prefer`. Enables lexical retrieval. |
@@ -64,28 +64,13 @@ Documentation: https://docs.zilliz.com/docs/full-text-search
 * **Function Type:** BM25
 * **Output Field:** `context_sparse_vector`
 
-This automatically generates sparse BM25 representations, allowing hybrid search across dense and sparse representations.
-
-**Format to configure single-analyzer with stop-word removal:**
-```json
-{
-    "tokenizer": "standard",
-    "filter": [
-        "lowercase",
-        {
-            "type": "stop",
-            "stop_words": ["_english_"]
-        }
-    ]
-}
-```
-
-
 ---
 
 ### Advanced Settings
 
 * **Dynamic Fields:** Enabled for future metadata extensions.
-* **Embedding Model:** OpenAI `text-embedding-3-small` (1536 dimensions). Need to use the same for query embeddings. No need to have a separate BM25 model since Milvus handles sparse vectors internally.
+* **Embedding Model:** OpenAI `text-embedding-3-small` (1536 dimensions). Need to use the same for query embeddings. 
+> No need to have a separate BM25 model since Milvus handles sparse vectors internally.
+
 
 
