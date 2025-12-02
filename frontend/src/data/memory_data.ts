@@ -216,41 +216,36 @@ export interface ReasoningBankEntry {
 export const reasoningBank: ReasoningBankEntry[] = [
   {
     rb_id: "RB-01",
-    title: "Demographic-Aware Efficacy Calculation",
+    title: "Merge Demographics Before Dosage Analysis",
     whatItMeans:
-      "When evaluating treatment efficacy, raw success rates can be misleading if patient demographics vary significantly across groups. Treatments may appear less effective simply because they were tested on higher-risk populations rather than actual performance issues.",
+      "During a previous dosage optimization task, the agent initially calculated optimal dosages using only treatment response data. This produced recommendations that failed for certain patient subgroups because demographic factors (age, weight, comorbidities) significantly affect dosage tolerance and efficacy.",
     howItHelps:
-      "By merging patient demographic data with treatment response metrics, we can calculate demographic-adjusted efficacy that reveals true treatment performance. This prevents misallocation of resources away from effective treatments that were tested on challenging patient populations.",
+      "Before running any dosage optimization analysis, always merge patient demographic data with treatment response tables first. Use JOIN operations on patient_id to ensure demographic factors are included in the analysis. This prevents recommending dosages that work for average patients but fail for specific demographic segments.",
     keyLesson:
-      "Always adjust efficacy calculations for patient demographics before making treatment recommendations.",
-    tags: ["efficacy", "demographics", "treatment_allocation", "data_merge"],
+      "Tool Call Pattern: Always execute MERGE operation joining demographics table before calculating dosage recommendations. Never optimize dosage using treatment_response table alone.",
+    tags: ["dosage_optimization", "data_merge", "demographics", "tool_call"],
   },
   {
     rb_id: "RB-02",
-    title: "Dosage Optimization Scenarios",
+    title: "CSV Structure Inspection for Large Datasets",
     whatItMeans:
-      "When clinicians request dosage optimization, they prefer sensitivity analysis showing multiple scenarios rather than a single recommendation. This allows them to understand trade-offs and make informed decisions based on patient characteristics.",
+      "The agent previously attempted to read entire large CSV files (>10MB) into memory when analyzing patient enrollment data, causing timeouts and memory errors. This happened because it assumed it needed full data access to understand the structure and determine which columns were relevant for demographic-adjusted calculations.",
     howItHelps:
-      "Creating sensitivity analysis with multiple dosage scenarios (10mg, 15mg, 20mg, 25mg) helps clinicians understand the range of potential outcomes and choose the optimal strategy based on patient tolerance and clinical constraints.",
+      "For CSV files over 5MB, first call READ_CSV with limit=50 parameter to inspect headers and sample rows. Use this to identify relevant columns (demographic fields, treatment arms, response metrics) before loading the full dataset. Then use targeted queries with column filters to load only necessary data.",
     keyLesson:
-      "For dosage optimization tasks, always provide multiple scenarios with projected impacts rather than a single recommendation.",
-    tags: [
-      "dosage",
-      "sensitivity_analysis",
-      "scenarios",
-      "clinical_preference",
-    ],
+      "Tool Call Pattern: For large CSVs over 5MB, execute READ_CSV(file, limit=50) first, analyze structure, then run analysis on it. Avoid reading entire large files and don't run full queries until structure is known.",
+    tags: ["csv_handling", "data_inspection", "large_files", "tool_call"],
   },
   {
     rb_id: "RB-03",
-    title: "User Preference Formatting",
+    title: "Assumption About Direct Treatment Comparison",
     whatItMeans:
-      "Different stakeholders prefer different data presentation formats. Researchers often prefer visualizations and charts over tabular data, while regulatory reviewers may prefer detailed tables with exact values.",
+      "During a previous treatment efficacy comparison, the agent assumed that two treatment tables (Treatment_A_Results.csv and Treatment_B_Results.csv) shared identical patient_id schemas and could be directly joined for comparison. This assumption was incorrect—one table used numeric patient_ids while the other used alphanumeric codes, causing the merge to fail silently with zero matches.",
     howItHelps:
-      "By tracking user preferences and formatting analysis results accordingly, we increase the likelihood that insights are understood and acted upon. Format alignment improves decision-making speed and accuracy in clinical settings.",
+      "Never assume schema compatibility between different data sources, even if they appear related. Before joining tables for comparative analysis, execute schema inspection queries to verify: (1) patient identifier formats match, (2) date formats are consistent, (3) measurement units align. Add validation checks after merge operations to ensure non-zero match rates.",
     keyLesson:
-      "Match the analysis format to user preferences—visualizations for researchers, detailed tables for regulatory review.",
-    tags: ["formatting", "user_preference", "presentation", "stakeholder"],
+      "Assumption Check: Before merging tables for comparison, validate schema compatibility with INSPECT_SCHEMA tool call. After merge, assert match_count > 0 before proceeding with analysis.",
+    tags: ["schema_validation", "data_merge", "assumption_error", "treatment_comparison"],
   },
 ];
 
