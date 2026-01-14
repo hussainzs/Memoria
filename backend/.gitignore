@@ -1,0 +1,48 @@
+# Bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+*.prof
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+ENV/
+env/
+
+# Build / dist
+build/
+dist/
+htmlcov/
+.coverage
+.coverage.*
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+.pyre/
+coverage.xml
+
+# Logs
+*.log
+logs/
+uvicorn.log
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.sqlite3

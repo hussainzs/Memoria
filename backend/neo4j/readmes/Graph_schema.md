@@ -1,30 +1,3 @@
-## The ReasoningBank
-
-### What it is
-
-The ReasoningBank is **not** part of the graph itself. It's a separate vector database collection (Milvus) that acts as the agent's "book of wisdom." It stores codified lessons learned from past graph interactions. Inspired by `MemoryBank` paper by Google released few weeks ago that helps agents improve overtime without fine-tuning.
-
-> Nodes in the graph can point to entries here via their `reasoning_pointer_ids` field.
-
-### ReasoningBank Schema
-
-This is what an entry looks like. The `key_lesson` and `context_to_prefer` are embedded for vector and BM25 retrieval.
-
-| Field                      | Example                                                        | Purpose & Thought Process                                                                                                                                                                                                           |
-| :------------------------- | :------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rb_id`                    | `INT64`                                                      | **(Primary Key)** Auto-generated unique identifier for each lesson. Used by nodes to point to this entry.                                                                                                                           |
-| `key_lesson`               | `"Never compute ROI without first adjusting by Rundown..."`    | **(VARCHAR)** Actual lesson stored for the future.                                              |
-| `key_lesson_vector`        | `[0.13, -0.02, 0.85, ...]`                                     | **(FLOAT_VECTOR 3072-dim)** Semantic search - dense embedding of `key_lesson` using OpenAI’s `text-embedding-3-large`.                                                                                         |
-| `context_to_prefer`        | `"Tasks that combine Channel/Source data with Sales/Leads..."` | **(VARCHAR)** Describes when the lesson applies best for the future. Supports both BM25 and Semantic search.|
-| `context_to_prefer_vector` | `[0.09, 0.45, -0.31, ...]`                                     | **(FLOAT_VECTOR 3072-dim)** Semantic Search - dense embedding of `context_to_prefer` using OpenAI’s `text-embedding-3-large`.                                                                                       |
-| `context_sparse_vector`    | `{“tasks”:0.9, “sales”:0.7, ...}`                              | **(SPARSE_FLOAT_VECTOR, BM25)** BM25 sparse vector from `context_to_prefer`. Used for full-text keyword retrieval.                                                                                          |
-| `tags`                     | `["roi", "rundown", "ev", "governance"]`                       | **(ARRAY / VARCHAR)** Topic keywords for metadata filtering. Indexed for efficient filtering. Max array length: `4096`, Max string length: `65535`.                                                                                 |
-| `link_nodes`               | `["N1003", "N1004"]`                                           | **(ARRAY / VARCHAR, Nullable)** Provenance links to graph nodes where the lesson originated. Indexed for quick reference. Max array length: `4096`, Max string length: `65535`.                                                     |
-
-> ⚠️ Refer to the [ReasoningBank Collection in Milvus](backend/milvus/readmes/ReasoningBank_collection.md) for index configurations and advanced settings made for this collection.
-
----
-
 ## Nodes: The Core Memories
 
 Each node is a "snapshot" of a piece of information.
