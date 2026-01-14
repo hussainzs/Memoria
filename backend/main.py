@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Initialize FastAPI application
 app = FastAPI(
     title="Memoria API",
-    description="Backend API for Memoria",
+    description="Long-term memory for AI Agents",
     version="0.1.0"
 )
 
@@ -17,12 +17,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Health check endpoint
-@app.get("/health")
-def health_check():
-    """Basic health check endpoint"""
-    return {"status": "ok"}
 
 # Routes will be included here as the project grows
 # from src.api import router

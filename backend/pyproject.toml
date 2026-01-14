@@ -1,13 +1,16 @@
 [project]
 name = "memoria"
 version = "0.1.0"
-description = "long-term memory for AI Agents"
+description = "long-term memory for enterprise AI Agents"
 authors = [
-    {name = "Your Name",email = "you@example.com"}
+    {name = "Hussain Zaidi",email = "syedhussainzaidi2002@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi (>=0.128.0,<0.129.0)",
+    "uvicorn (>=0.40.0,<0.41.0)",
+    "pydantic-settings (>=2.12.0,<3.0.0)"
 ]
 
 
