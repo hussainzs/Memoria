@@ -1,9 +1,0 @@
-setuptools==80.9.0
-wheel==0.45.1
-packaging
-openai==1.35.1
-tqdm==4.66.4
-backoff==2.2.1
-numpy==1.26.3
-nltk==3.9.1
-httpx==0.27.2

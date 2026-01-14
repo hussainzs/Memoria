@@ -17,7 +17,7 @@ from typing import Any
 from neo4j import AsyncGraphDatabase
 import neo4j
 from neo4j.exceptions import DriverError
-from backend.milvus.helpers import WriteDataOnFile
+from backend.milvus.scripts_with_data.helpers import WriteDataOnFile
 
 import os
 import dotenv

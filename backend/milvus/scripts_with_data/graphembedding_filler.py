@@ -1,7 +1,7 @@
 import asyncio
 
-from backend.milvus.helpers import AsyncMilvus, WriteDataOnFile, GraphEmbeddingsEntry, AsyncOpenAIClient
-from backend.neo4j.neo4jHelpers import DIRECTORY_PATH as NEO4J_DIRECTORY_PATH
+from backend.milvus.scripts_with_data.helpers import AsyncMilvus, WriteDataOnFile, GraphEmbeddingsEntry, AsyncOpenAIClient
+from backend.neo4j.scripts_with_data.neo4jHelpers import DIRECTORY_PATH as NEO4J_DIRECTORY_PATH
 
 async def create_graphembeddings(directory_path: str, filename: str, indices_to_process: list[int] | None = None) -> None:
     """
