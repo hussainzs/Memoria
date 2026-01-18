@@ -12,14 +12,19 @@ async def start_workflow(
     request_data: Dict[str, Any]
 ) -> JSONResponse:
     """
-    Start a new workflow instance.
+    Start a new workflow instance or continue an existing conversation.
+    
+    If workflow_id is provided, this is a continuation of an existing conversation.
+    The workflow will retrieve past conversation history and state from the database.
     """
-    # Generate unique workflow ID
-    workflow_id = str(uuid4())
+    # Generate unique workflow ID or use existing one
+    workflow_id = request_data.get("workflow_id", str(uuid4()))
     
     # TODO: Extract parameters from request_data
     # user_input = request_data.get("user_input")
     # ask_clarifications = request_data.get("ask_clarifications", False)
+    # preferences = request_data.get("preferences", {})  # Optional JSON with keys like "model", "preferred_tone"
+    # if workflow_id was provided, retrieve existing conversation state from DB
     
     # TODO: Start the workflow function (to be defined elsewhere)
     # This function will receive an emit function that writes to PostgreSQL

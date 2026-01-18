@@ -75,3 +75,5 @@ Stop containers (data will persist):
 ```bash
 docker compose down
 ```
+---
+

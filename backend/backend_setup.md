@@ -1,8 +1,7 @@
 
 # Memoria Backend
 
-## Notes
-1) Things that can break the code have comments with "Warning⚠️"
+> Things that can break the code have comments with "Warning⚠️"
 
 ## Setup
 Poetry handles virtualenvironments and dependencies. If you want to use it, install at: https://python-poetry.org/docs/

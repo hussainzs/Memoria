@@ -27,17 +27,24 @@ The API allows you to start workflows, receive real-time updates via WebSocket, 
 **Endpoint:** `POST /workflow/start`
 
 **Description:**  
-Initiates a new workflow instance and returns a unique workflow ID along with clarification questions if applicable.
+Initiates a new workflow instance or continues an existing conversation. If a `workflow_id` is provided, this represents a new human message in an existing conversation. The workflow will retrieve past conversation history and state from the database to maintain context across multiple interactions.
 
 **Parameters:**  
 - `user_input` (string, required): The user's query or input for the workflow
+- `workflow_id` (string, optional): Existing workflow UUID to continue a conversation. If omitted, a new workflow is created
 - `ask_clarifications` (boolean, optional): Whether the workflow should ask clarification questions before proceeding
+- `preferences` (object, optional): JSON object containing user preferences such as model and preferred tone
 
 **Request Body:**
 ```json
 {
   "user_input": "string",
-  "ask_clarifications": true/false
+  "workflow_id": "uuid4-string (optional)",
+  "ask_clarifications": true/false,
+  "preferences": {
+    "model": "string",
+    "preferred_tone": "string"
+  }
   // Additional parameters to be defined
 }
 ```
@@ -56,7 +63,7 @@ Initiates a new workflow instance and returns a unique workflow ID along with cl
 }
 ```
 
-**Example in JavaScript:**
+**Example in JavaScript (New Workflow):**
 ```javascript
 fetch('http://localhost:8000/workflow/start', {
   method: 'POST',
@@ -65,7 +72,32 @@ fetch('http://localhost:8000/workflow/start', {
   },
   body: JSON.stringify({
     user_input: 'Analyze sales trends for Q3',
-    ask_clarifications: true
+    ask_clarifications: true,
+    preferences: {
+      model: 'gpt-4',
+      preferred_tone: 'professional'
+    }
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+**Example in JavaScript (Continue Existing Conversation):**
+```javascript
+fetch('http://localhost:8000/workflow/start', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    user_input: 'Now analyze Q4 as well',
+    workflow_id: 'existing-uuid4-string',
+    ask_clarifications: false,
+    preferences: {
+      model: 'gpt-4',
+      preferred_tone: 'casual'
+    }
   })
 })
 .then(response => response.json())
@@ -178,11 +210,20 @@ fetch(`http://localhost:8000/workflow/input/your-workflow-id`, {
 
 ### Basic Workflow (No Clarifications)
 
-1. Client calls `POST /workflow/start` with `ask_clarifications=false`
+1. Client calls `POST /workflow/start` with `ask_clarifications=false` (omit `workflow_id` for new conversation)
 2. Server returns `workflow_id` immediately
 3. Client connects to `WS /workflow/ws/{workflow_id}`
 4. Server streams updates as workflow progresses
 5. Server sends final answer when complete
+
+### Continuing an Existing Conversation
+
+1. Client calls `POST /workflow/start` with the existing `workflow_id` and new `user_input`
+2. Server retrieves past conversation history and state from database
+3. Server returns same `workflow_id`
+4. Client connects to `WS /workflow/ws/{workflow_id}`
+5. Server processes new message with full conversation context
+6. Server streams updates and final answer
 
 ### Interactive Workflow (With Clarifications)
 
