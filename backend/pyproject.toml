@@ -12,12 +12,12 @@ dependencies = [
     "uvicorn (>=0.40.0,<0.41.0)",
     "pydantic-settings (>=2.12.0,<3.0.0)",
     "sqlalchemy (>=2.0)",
-    "psycopg[binary] (>=3.3.2,<4.0.0)",
     "pydantic (>=2.12.5,<3.0.0)",
     "neo4j (>=6.1.0,<7.0.0)",
     "pymilvus (>=2.6.6,<3.0.0)",
     "openai (>=2.15.0,<3.0.0)",
-    "aiofiles (>=25.1.0,<26.0.0)"
+    "aiofiles (>=25.1.0,<26.0.0)",
+    "asyncpg (>=0.31.0,<0.32.0)"
 ]
 
 [tool.poetry]
