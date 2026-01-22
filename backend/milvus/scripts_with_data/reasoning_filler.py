@@ -3,14 +3,15 @@
 
 ❗ SERIOUSLY, BE CAREFUL RUNNING THIS. IT WILL MAKE LOTS OF OPENAI API CALLS AND COST YOU MONEY.
 💣 RUNNING COLLECTION FILL WITH SAME DATA WILL CREATE DUPLICATES IN MILVUS 
+
+ Run: python -m milvus.scripts_with_data.reasoning_filler
 """
 
 from milvus.scripts_with_data.helpers import WriteDataOnFile, ReasoningBankEntry, AsyncMilvus, AsyncOpenAIClient
 import asyncio
+# make sure this is filled with the entries we will append to. 
+from milvus.scripts_with_data.reasoning_entries import entries
 
-# synthetically generated Agent lessons to be inserted into Milvus "reasoningbank" collection.
-# each object should have "key_lesson", "context_to_prefer", "tags", and optionally "link_nodes" fields. The vectors will be generated through these scripts below.
-entries = []
 
 async def create_reasoning_embeddings(indices_to_process: list[int] | None = None) -> None:
     """
