@@ -16,10 +16,13 @@ class Turn:
 
 History = List[Turn]
 
-CONTEXT_MSGS_LEN = 10
+CONTEXT_MSGS_LEN = 5
 TOTAL_MSGS_LEN = 20
 
 PR_FACT = 0.4
+PR_EDIT = 0.2
+PR_WORKFLOW = 0.2
+PR_RETR = 0.2
 PR_LONG_JUMP = 0.3
 TEMPORAL_REASONING = True
 
@@ -107,7 +110,7 @@ def prompt_user(seed: str, history_text: str, seed_file=False, verbose=False, te
     parts = (
         [
             "You are the USER in a dialogue with an AI agent."
-            "You will be given base data and the conversation so far (if any).\nBase data:",
+            "You will be given base data and the conversation so far (if any). ",
             seed.strip(),
             USER_GUIDE
         ]
@@ -122,18 +125,22 @@ def prompt_user(seed: str, history_text: str, seed_file=False, verbose=False, te
     if history_text:
         parts.append(history_text)
 
+    
     if first_turn:
-        parts.append("FIRST TURN: Produce ONE message to start the conversation and set a context.\nUSER:")
+        parts.extend([
+            "FIRST TURN: Produce ONE message to start the conversation and set a context.",
+            "USER:"
+        ])
     else:
         extra_temporal_note = (
-            "\nAlso mention a specific real-time event (e.g., \"Just now, I did X\", but use more varied word choice)."
+            "Also mention a specific real-time event (e.g., \"Just now, I did X\", but use more varied word choice)."
             if random.random() < PR_FACT else ""
         )
-        parts.append(
-            "\nNow, act as the USER. Produce exactly ONE user message that logically continues the conversation, "
+        parts.extend([
+            "Now, act as the USER. Produce exactly ONE user message that logically continues the conversation, "
             "refers to existing info when helpful, and can be answered by the agent."
             f"{extra_temporal_note}\nUSER:"
-        )
+        ])
 
     prompt = "\n".join(parts)
     if verbose:
@@ -202,7 +209,6 @@ def gen_with_review(
     label: str,
     build_prompt: Callable[[], str],
     call_llm: Callable[[str], str],
-    max_regens: int = 3,
 ) -> tuple[str, str]:
     """
     Generate text with a user-in-the-loop review cycle.
@@ -296,8 +302,18 @@ def run_procedural_generation(
 
         # USER
         def build_user_prompt():
-            return prompt_user(seed, base_hist_str, seed_file, verbose=True, temporal_reasoning=temporal_reasoning)
-        u_text, _u_prompt = gen_with_review("USER", build_user_prompt, call_llm, max_regens=3)
+            return prompt_user(seed, base_hist_str, seed_file, verbose=False, temporal_reasoning=temporal_reasoning)
+        u_text, _u_prompt = gen_with_review("USER", build_user_prompt, call_llm)
+        
+        if pairs == 0 and seed_file:
+            try:
+                with open(seed_file, "r", encoding="utf-8") as f:
+                    base_raw = f.read().strip()
+                prefix = f"<BASE DATA>\n{base_raw}\n</BASE DATA>\n\n"
+                u_text = prefix + u_text
+            except FileNotFoundError:
+                print(f"seed file not found")
+        
         user_ts = current_user_time
         history.append(Turn(user=u_text, timestamp_user=user_ts))
 
@@ -305,14 +321,14 @@ def run_procedural_generation(
         hist_with_user = render_history(history)
         def build_agent_prompt():
             return prompt_agent("", hist_with_user, verbose=False)
-        a_text, _a_prompt = gen_with_review("AGENT", build_agent_prompt, call_llm, max_regens=3)
+        a_text, _a_prompt = gen_with_review("AGENT", build_agent_prompt, call_llm)
         history[-1].agent = a_text
         history[-1].timestamp_agent = agent_reply_time(user_ts)
 
         # REASONING
         def build_reason_prompt():
             return prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
-        r_text, _r_prompt = gen_with_review("AGENT REASONING", build_reason_prompt, call_llm, max_regens=3)
+        r_text, _r_prompt = gen_with_review("AGENT REASONING", build_reason_prompt, call_llm)
         history[-1].agent_reasoning = r_text
 
         current_user_time = next_user_time(user_ts, temporal_reasoning=temporal_reasoning)
@@ -332,7 +348,7 @@ def run_procedural_generation(
         # USER
         def build_user_prompt():
             return prompt_user(seed, base_hist_str, seed_file, verbose=False, temporal_reasoning=temporal_reasoning)
-        u_text, _u_prompt = gen_with_review("USER", build_user_prompt, call_llm, max_regens=3)
+        u_text, _u_prompt = gen_with_review("USER", build_user_prompt, call_llm)
         user_ts = current_user_time
         history.append(Turn(user=u_text, timestamp_user=user_ts))
 
@@ -340,14 +356,14 @@ def run_procedural_generation(
         hist_with_user = render_history(ctx + [Turn(user=u_text, timestamp_user=user_ts)])
         def build_agent_prompt():
             return prompt_agent("", hist_with_user, verbose=False)
-        a_text, _a_prompt = gen_with_review("AGENT", build_agent_prompt, call_llm, max_regens=3)
+        a_text, _a_prompt = gen_with_review("AGENT", build_agent_prompt, call_llm)
         history[-1].agent = a_text
         history[-1].timestamp_agent = agent_reply_time(user_ts)
 
         # REASONING
         def build_reason_prompt():
             return prompt_agent_reasoning(hist_with_user, a_text, verbose=False)
-        r_text, _r_prompt = gen_with_review("AGENT REASONING", build_reason_prompt, call_llm, max_regens=3)
+        r_text, _r_prompt = gen_with_review("AGENT REASONING", build_reason_prompt, call_llm)
         history[-1].agent_reasoning = r_text
 
         current_user_time = next_user_time(user_ts, temporal_reasoning=temporal_reasoning)
@@ -382,9 +398,9 @@ if __name__ == "__main__":
     # TODO: accept input for these
     # seed_file = os.path.join(eval_root, "data", "student_scores.csv")
     # SEED_TEXT = "You are a teacher with this information about your students."
-    seed_file = None
+    seed_file = os.path.join(eval_root, "data", "US_CPI", "CPIForecast.csv")
     SEED_TEXT =\
-        "You are a sales analyst who wants to review and improve sales performance."
+        "You are an analyst looking for holistic trends in the data."
 
     history = run_procedural_generation(
         seed_text=SEED_TEXT,
