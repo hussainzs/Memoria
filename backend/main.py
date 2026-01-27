@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # route imports
-from src.api.subquery_routes.route import router as workflow_router
+from src.api.route import router as workflow_router
 
 # Initialize FastAPI application
 app = FastAPI(
