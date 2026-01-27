@@ -17,11 +17,9 @@ async def test_openai_connection():
         # For chat completions, use client.chat.completions.create
         try:
             # Using the responses API as requested. 
-            # Note: If this fails type checking, it may be due to the beta status of the responses API.
             response = await client.responses.create(
                 model="gpt-5-mini",
-                input="Only Reply with OK",
-                max_output_tokens=5
+                input="Only Reply with OK"
             )
             print(f"Received response: {response}")
         except Exception as e:
