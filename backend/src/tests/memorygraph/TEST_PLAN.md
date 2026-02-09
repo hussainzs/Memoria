@@ -230,6 +230,47 @@ Target: traversal state behavior _without the database_!
     - Act: call `finalize_remaining()`.
     - Assert: all remaining paths are added.
 
+#### Expanded Phase 1: Unit Tests for Pure Python Logic (Including Parsers)
+
+Target: test traversal state, path construction, and output formatting without touching Neo4j.
+
+A. Traversal state tests (no DB):
+
+1) **Frontier selection and deduplication**
+    - Initialize: `seed_node = GraphNode(id="S", labels=["Seed"], properties={})` and `traversal = GraphTraversalState(max_branches=2, seed_node=seed_node)`.
+    - Build `frontier: list[FrontierNode]` with `FrontierNode(node_id, activation, path)` where `path` uses `GraphPath.empty()` or previously extended paths.
+    - Create `candidates_by_parent` mapping with `ExpansionCandidate` objects whose `neighbor_node.id` intentionally collides across parents to validate that the highest `transfer_energy` wins the claim.
+    - Assert: only top-2 per parent chosen, winners are chosen by energy, and `newly_visited` contains the selected neighbor ids.
+
+2) **Completed path logic**
+    - Setup a frontier node with a non-empty `path` and zero candidates in `candidates_by_parent`.
+    - Call `select_next_frontier()` and assert the path is returned in `completed_paths`.
+
+3) **Max depth completion**
+    - Provide a remaining `frontier` with extended `GraphPath` objects and call `finalize_remaining()`.
+    - Assert all non-empty paths are returned.
+
+B. Parser output tests (no DB):
+
+1) **`to_d3()` minimal sanity**
+    - Minimal input: one seed node and one 1-hop path.
+    - create a minimal input called `result` and assert the parsing logic correctly produces nodes and links with expected fields.
+
+2) **`to_llm_context()` minimal sanity**
+    - Using the same `result` above, call `to_llm_context(result)`.
+    - Assertions:
+      - The returned dict has a `paths` list with a string starting with `"Path 1: [Seed S1]"` and containing `"RELATES"` and `T=0.120` (approx formatting check).
+      - The returned `graph` equals `to_d3(result)`.
+
+3) **`to_debug_cypher()` minimal sanity**
+    - Using the same `result`, call `to_debug_cypher(result)`.
+    - Assertion: returns a list containing the exact Cypher pattern
+      `MATCH p = (n0 {id: $id0})-[:RELATES]-(n1 {id: $id1}) RETURN p` (string equality) and that parameter placeholders correspond to the node ordering used in the path.
+
+Notes for parser tests:
+- Keep inputs minimal and deterministic.
+- Use string comparisons for formatting checks, but prefer partial string assertions when whitespace/rounding may vary (e.g., `assert "RELATES" in s and "T=0.120" in s`).
+
 ### 3.3. Phase 2: Cypher + math validation tests (integration)
 
 Target: validate the transfer energy and tag similarity computations.
@@ -267,6 +308,18 @@ Target: validate the transfer energy and tag similarity computations.
 5) **Data correctness guardrails**
     - Before asserting values, document each tested node and edge in the test docstring with the exact properties from dummy_data_cypher.txt.
     - The developer must read the dummy data carefully and confirm all expected values to avoid false failures.
+
+#### Expanded Phase 3: BFS Logic + End-to-End Tests
+
+- Building `GraphRetriever` in tests:
+  - For DB-backed tests use `GraphRetriever(neo4j_driver, GraphRetrieverConfig(database="testmemory", max_depth=..., min_activation=..., max_branches=...))`.
+  - For unit tests, inject a fake connector into a `GraphRetriever` instance: `retriever._connector = FakeConnector(...)` then call `_explore_single()` by creating a fake session or monkeypatching `self._driver.session` to return a fake session whose `execute_read(fn)` calls `fn(fake_tx)`.
+
+- Collecting results from `explore()`:
+  - `results = [r async for r in retriever.explore([seed], query_tags)]` and assert on `results[0].paths`, `max_depth_reached`, and `terminated_reason`.
+
+- Add explicit tests for `seed_not_found`:
+  - Create a fake connector that returns `SeedFetchResult(node=None, labels=[], found=False)` and assert returned `RetrievalResult.terminated_reason == "seed_not_found"`.
 
 ### 3.4. Phase 3: BFS logic + end-to-end tests
 
@@ -316,15 +369,14 @@ Target: ensure the algorithm retrieves plausible memory paths given the dummy da
   - Expected output
   - Why it should hold (math or dummy data reasoning)
 - Add inline comments only for non-obvious constants or calculations.
+- make sure you carefully read graph_retriever.py, models.py, retriever_parser.py, and dummy_data_cypher.txt to avoid misreading the data. It's pivotal that the "ecpected" values in tests are correct based on the dummy data that exists. It's also pivotal that tests call the correct functions and initialize them correctly.
 
-## 4. Notes About Neo4j Python SDK Usage
+### 3.7. Additional Implementation Details and Parser Tests
 
-Include these implementation notes in code comments or internal docs to prevent misuse:
+- Best practices / gotchas:
+  - Tests must avoid creating multiple concurrent `AsyncSession` objects in the same test function; share a single `neo4j_session` or use sequential `async with` blocks.
+  - For unit tests that should not touch the DB, patch or inject a fake `Neo4jConnector` into `GraphRetriever` (e.g., `retriever._connector = FakeConnector(...)`) or call `GraphTraversalState` directly.
+  - The `GraphRetriever.explore()` API returns an async iterator; collect results with `results = [r async for r in retriever.explore([seed], query_tags)]` or `async for r in retriever.explore(...): ...`.
+  - To avoid waiting during retry tests, set `GraphRetrieverConfig(max_retries=0)`.
+  - Use `pytest.approx` for floating-point comparisons.
 
-1) **Sessions are not concurrency-safe**: each graph exploration must use its own session. Do not share a session across tasks. One session per one task.
-2) **One result at a time**: fully consume a result before running another query on the same session.
-3) **Use execute_read**: the transaction function must be idempotent because it may be retried.
-4) **Avoid Result.data()**: it strips labels and relationship info; parse `Record` keys explicitly.
-5) **Avoid Result.graph()**: it is experimental and not guaranteed stable.
-
-These notes should be tied to the new Connector implementation and used when writing tests.
