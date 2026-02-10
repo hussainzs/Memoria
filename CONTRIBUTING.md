@@ -17,8 +17,6 @@ Over the next 2–3 weeks, the core architecture is being finalized (ideally). D
   - Feature ideas
 - Join our discord community **[[Click Me](https://discord.gg/cSzVWf29bK)]**!
 
-We’re especially interested in **thoughtful discussion**, not rushed PRs.
-
 ## Pull Requests
 Once the MVP stabilizes, we’ll open the project up for contributions.
 At that point, this file will be updated with:
@@ -27,8 +25,6 @@ At that point, this file will be updated with:
 - Code style guidelines
 - Testing requirements
 - PR review process
-
-Please hold off on submitting PRs until then unless explicitly discussed with the maintainers.
 
 ## Communication
 
