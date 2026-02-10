@@ -1,0 +1,428 @@
+MATCH (n)
+WHERE n.id IN [
+  'T3000','T3001','T3002','T3003','T3004','T3005',
+  'T4000','T4001','T4002','T4003','T4004','T4005',
+  'T5000','T5001','T5002','T5003','T5004'
+]
+DETACH DELETE n;
+
+CREATE (n:UserRequest {
+  id: 'T3000',
+  text: 'Which regions showed demand spikes for ready-to-eat meals after the fall campaign?',
+  conv_id: 'TEST_CONV_H1',
+  ingestion_time: '2025-11-01T08:30:00-05:00',
+  update_time: '2025-11-01T08:30:00-05:00',
+  embedding_id: 'emb_T3000',
+  tags: ['demand_spike', 'campaign', 'region'],
+  reasoning_pointer_ids: [],
+  user_role: 'growth_analyst',
+  user_id: 'test_user_h1'
+});
+
+CREATE (n:DataSource {
+  id: 'T3001',
+  text: 'Campaign lift report with weekly units and price by region for ready-to-eat meals.',
+  conv_id: 'TEST_CONV_H1',
+  ingestion_time: '2025-11-01T08:31:00-05:00',
+  update_time: '2025-11-01T08:31:00-05:00',
+  embedding_id: 'emb_T3001',
+  tags: ['campaign', 'sales', 'region'],
+  reasoning_pointer_ids: [],
+  source_type: 'csv',
+  doc_pointer: 'Campaign_Lift_RTE_2025W39.csv',
+  relevant_parts: 'Rows for weeks 36-44'
+});
+
+CREATE (n:AgentAction {
+  id: 'T3002',
+  text: 'Normalized lift by baseline and removed outliers using median absolute deviation.',
+  conv_id: 'TEST_CONV_H1',
+  ingestion_time: '2025-11-01T08:32:00-05:00',
+  update_time: '2025-11-01T08:32:00-05:00',
+  embedding_id: 'emb_T3002',
+  tags: ['normalization', 'outlier', 'campaign'],
+  reasoning_pointer_ids: [],
+  status: 'success',
+  parameter_field: 'method=mad; baseline=prior_8_weeks'
+});
+
+CREATE (n:AgentAnswer {
+  id: 'T3003',
+  text: 'Midwest and South Central regions showed the strongest lift, driven by weekend bundle promotions.',
+  conv_id: 'TEST_CONV_H1',
+  ingestion_time: '2025-11-01T08:33:00-05:00',
+  update_time: '2025-11-01T08:33:00-05:00',
+  embedding_id: 'emb_T3003',
+  tags: ['campaign', 'region', 'insight'],
+  reasoning_pointer_ids: [],
+  analysis_types: ['lift_analysis', 'regional_breakdown'],
+  metrics: ['units_lift', 'revenue_lift']
+});
+
+CREATE (n:Event {
+  id: 'T3004',
+  text: 'Cold front caused a three-day demand surge for ready-to-eat meals in the Midwest.',
+  conv_id: 'TEST_CONV_H1',
+  ingestion_time: '2025-11-01T08:34:00-05:00',
+  update_time: '2025-11-01T08:34:00-05:00',
+  embedding_id: 'emb_T3004',
+  tags: ['weather', 'demand_spike', 'midwest'],
+  reasoning_pointer_ids: [],
+  source_type: 'System Incident',
+  start_date: '2025-10-12',
+  end_date: '2025-10-14'
+});
+
+CREATE (n:UserPreference {
+  id: 'T3005',
+  text: 'Director prefers regional tables with 3-week rolling averages and no pie charts.',
+  conv_id: 'TEST_CONV_H1',
+  ingestion_time: '2025-11-01T08:35:00-05:00',
+  update_time: '2025-11-01T08:35:00-05:00',
+  embedding_id: 'emb_T3005',
+  tags: ['report_style', 'regional', 'format'],
+  reasoning_pointer_ids: [],
+  preference_type: 'report_style'
+});
+
+CREATE (n:UserRequest {
+  id: 'T4000',
+  text: 'Are supplier lead times improving after the Q4 routing change?',
+  conv_id: 'TEST_CONV_H2',
+  ingestion_time: '2025-11-05T09:10:00-05:00',
+  update_time: '2025-11-05T09:10:00-05:00',
+  embedding_id: 'emb_T4000',
+  tags: ['supplier', 'lead_time', 'routing_change'],
+  reasoning_pointer_ids: [],
+  user_role: 'supply_chain_manager',
+  user_id: 'test_user_h2'
+});
+
+CREATE (n:DataSource {
+  id: 'T4001',
+  text: 'Weekly supplier ETA snapshots for top 20 suppliers, weeks 35-45.',
+  conv_id: 'TEST_CONV_H2',
+  ingestion_time: '2025-11-05T09:11:00-05:00',
+  update_time: '2025-11-05T09:11:00-05:00',
+  embedding_id: 'emb_T4001',
+  tags: ['supplier', 'eta', 'lead_time'],
+  reasoning_pointer_ids: [],
+  source_type: 'csv',
+  doc_pointer: 'Supplier_ETA_Snapshots_2025W35_45.csv',
+  relevant_parts: 'All rows, columns A-J'
+});
+
+CREATE (n:AgentAction {
+  id: 'T4002',
+  text: 'Computed median lead time by supplier and compared pre/post routing change.',
+  conv_id: 'TEST_CONV_H2',
+  ingestion_time: '2025-11-05T09:12:00-05:00',
+  update_time: '2025-11-05T09:12:00-05:00',
+  embedding_id: 'emb_T4002',
+  tags: ['lead_time', 'comparison', 'routing'],
+  reasoning_pointer_ids: [],
+  status: 'success',
+  parameter_field: 'metric=median_lead_time; window=4w'
+});
+
+CREATE (n:AgentAnswer {
+  id: 'T4003',
+  text: 'Median lead times improved 1.6 days for tier-1 suppliers but regressed for two regional carriers.',
+  conv_id: 'TEST_CONV_H2',
+  ingestion_time: '2025-11-05T09:13:00-05:00',
+  update_time: '2025-11-05T09:13:00-05:00',
+  embedding_id: 'emb_T4003',
+  tags: ['lead_time', 'supplier', 'insight'],
+  reasoning_pointer_ids: [],
+  analysis_types: ['trend_analysis'],
+  metrics: ['median_lead_time']
+});
+
+CREATE (n:Event {
+  id: 'T4004',
+  text: 'Routing change rollout paused for two DCs due to carrier capacity limits.',
+  conv_id: 'TEST_CONV_H2',
+  ingestion_time: '2025-11-05T09:14:00-05:00',
+  update_time: '2025-11-05T09:14:00-05:00',
+  embedding_id: 'emb_T4004',
+  tags: ['routing_change', 'capacity', 'event'],
+  reasoning_pointer_ids: [],
+  source_type: 'Calendar',
+  start_date: '2025-10-20',
+  end_date: '2025-10-27'
+});
+
+CREATE (n:UserPreference {
+  id: 'T4005',
+  text: 'Ops team wants ETA distributions summarized as p50 and p90, not averages.',
+  conv_id: 'TEST_CONV_H2',
+  ingestion_time: '2025-11-05T09:15:00-05:00',
+  update_time: '2025-11-05T09:15:00-05:00',
+  embedding_id: 'emb_T4005',
+  tags: ['report_style', 'eta', 'quantiles'],
+  reasoning_pointer_ids: [],
+  preference_type: 'granularity'
+});
+
+CREATE (n:UserRequest {
+  id: 'T5000',
+  text: 'Which customer segments are most responsive to the loyalty refresh?',
+  conv_id: 'TEST_CONV_H3',
+  ingestion_time: '2025-11-08T11:00:00-05:00',
+  update_time: '2025-11-08T11:00:00-05:00',
+  embedding_id: 'emb_T5000',
+  tags: ['customer_segment', 'loyalty', 'response'],
+  reasoning_pointer_ids: [],
+  user_role: 'crm_lead',
+  user_id: 'test_user_h3'
+});
+
+CREATE (n:DataSource {
+  id: 'T5001',
+  text: 'Customer segmentation refresh output with response flags and offer types.',
+  conv_id: 'TEST_CONV_H3',
+  ingestion_time: '2025-11-08T11:01:00-05:00',
+  update_time: '2025-11-08T11:01:00-05:00',
+  embedding_id: 'emb_T5001',
+  tags: ['customer_segment', 'loyalty', 'offer'],
+  reasoning_pointer_ids: [],
+  source_type: 'parquet',
+  doc_pointer: 'Customer_Segmentation_2025Q4.parquet',
+  relevant_parts: 'Segment_id, response_flag, offer_type'
+});
+
+CREATE (n:AgentAction {
+  id: 'T5002',
+  text: 'Computed response lift by segment and validated with holdout cohorts.',
+  conv_id: 'TEST_CONV_H3',
+  ingestion_time: '2025-11-08T11:02:00-05:00',
+  update_time: '2025-11-08T11:02:00-05:00',
+  embedding_id: 'emb_T5002',
+  tags: ['lift', 'validation', 'segment'],
+  reasoning_pointer_ids: [],
+  status: 'success',
+  parameter_field: 'holdout=10%; metric=lift'
+});
+
+CREATE (n:AgentAnswer {
+  id: 'T5003',
+  text: 'Value-seekers and new parents showed the highest lift; corporate commuters were flat.',
+  conv_id: 'TEST_CONV_H3',
+  ingestion_time: '2025-11-08T11:03:00-05:00',
+  update_time: '2025-11-08T11:03:00-05:00',
+  embedding_id: 'emb_T5003',
+  tags: ['customer_segment', 'insight', 'loyalty'],
+  reasoning_pointer_ids: [],
+  analysis_types: ['segment_analysis'],
+  metrics: ['response_rate', 'lift']
+});
+
+CREATE (n:Event {
+  id: 'T5004',
+  text: 'Loyalty refresh campaign launched with double-points weekend.',
+  conv_id: 'TEST_CONV_H3',
+  ingestion_time: '2025-11-08T11:04:00-05:00',
+  update_time: '2025-11-08T11:04:00-05:00',
+  embedding_id: 'emb_T5004',
+  tags: ['loyalty', 'campaign', 'event'],
+  reasoning_pointer_ids: [],
+  source_type: 'Calendar',
+  start_date: '2025-10-05',
+  end_date: '2025-10-06'
+});
+
+MATCH (a {id: 'T3000'}), (b {id: 'T3001'})
+CREATE (a)-[r:RELATES {
+  id: 'E7001',
+  text: 'Request triggers retrieval of campaign lift data by region.',
+  weight: 0.90,
+  tags: ['campaign', 'evidence', 'region'],
+  created_time: '2025-11-01T08:40:00-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3000'}), (b {id: 'T3002'})
+CREATE (a)-[r:RELATES {
+  id: 'E7002',
+  text: 'Request leads to data normalization and outlier removal.',
+  weight: 0.80,
+  tags: ['campaign', 'methodology'],
+  created_time: '2025-11-01T08:40:01-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3001'}), (b {id: 'T3002'})
+CREATE (a)-[r:RELATES {
+  id: 'E7003',
+  text: 'Lift report is cleaned and normalized before analysis.',
+  weight: 0.75,
+  tags: ['normalization', 'campaign'],
+  created_time: '2025-11-01T08:40:02-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3002'}), (b {id: 'T3003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7004',
+  text: 'Normalized lift metrics produce regional insights.',
+  weight: 0.85,
+  tags: ['campaign', 'insight', 'region'],
+  created_time: '2025-11-01T08:40:03-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3001'}), (b {id: 'T3003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7005',
+  text: 'Raw lift data supports the regional conclusion.',
+  weight: 0.82,
+  tags: ['campaign', 'evidence'],
+  created_time: '2025-11-01T08:40:04-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3004'}), (b {id: 'T3003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7006',
+  text: 'Weather-driven demand surge explains part of the lift.',
+  weight: 0.70,
+  tags: ['weather', 'demand_spike'],
+  created_time: '2025-11-01T08:40:05-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3005'}), (b {id: 'T3003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7007',
+  text: 'Preferences shape how the regional findings are presented.',
+  weight: 0.55,
+  tags: ['report_style', 'format'],
+  created_time: '2025-11-01T08:40:06-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3000'}), (b {id: 'T3004'})
+CREATE (a)-[r:RELATES {
+  id: 'E7008',
+  text: 'Request references the weather event as a potential driver.',
+  weight: 0.60,
+  tags: ['event', 'demand_spike'],
+  created_time: '2025-11-01T08:40:07-05:00'
+}]->(b);
+
+MATCH (a {id: 'T4000'}), (b {id: 'T4001'})
+CREATE (a)-[r:RELATES {
+  id: 'E7101',
+  text: 'Request pulls supplier ETA snapshots for lead time analysis.',
+  weight: 0.88,
+  tags: ['supplier', 'evidence', 'lead_time'],
+  created_time: '2025-11-05T09:20:00-05:00'
+}]->(b);
+
+MATCH (a {id: 'T4001'}), (b {id: 'T4002'})
+CREATE (a)-[r:RELATES {
+  id: 'E7102',
+  text: 'ETA snapshots are aggregated into lead time distributions.',
+  weight: 0.72,
+  tags: ['lead_time', 'methodology'],
+  created_time: '2025-11-05T09:20:01-05:00'
+}]->(b);
+
+MATCH (a {id: 'T4002'}), (b {id: 'T4003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7103',
+  text: 'Lead time comparisons yield the routing-change conclusion.',
+  weight: 0.78,
+  tags: ['routing_change', 'insight'],
+  created_time: '2025-11-05T09:20:02-05:00'
+}]->(b);
+
+MATCH (a {id: 'T4001'}), (b {id: 'T4003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7104',
+  text: 'ETA evidence supports the lead time improvement statement.',
+  weight: 0.70,
+  tags: ['lead_time', 'evidence'],
+  created_time: '2025-11-05T09:20:03-05:00'
+}]->(b);
+
+MATCH (a {id: 'T4004'}), (b {id: 'T4002'})
+CREATE (a)-[r:RELATES {
+  id: 'E7105',
+  text: 'Capacity limits constrain the routing change evaluation.',
+  weight: 0.58,
+  tags: ['capacity', 'routing_change'],
+  created_time: '2025-11-05T09:20:04-05:00'
+}]->(b);
+
+MATCH (a {id: 'T4005'}), (b {id: 'T4003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7106',
+  text: 'Preference affects how lead time results are summarized.',
+  weight: 0.52,
+  tags: ['report_style', 'quantiles'],
+  created_time: '2025-11-05T09:20:05-05:00'
+}]->(b);
+
+MATCH (a {id: 'T3003'}), (b {id: 'T4001'})
+CREATE (a)-[r:RELATES {
+  id: 'E7201',
+  text: 'Regional demand shifts were cross-checked against supplier ETA stability.',
+  weight: 0.35,
+  tags: ['cross_check'],
+  created_time: '2025-11-05T09:25:00-05:00'
+}]->(b);
+
+MATCH (a {id: 'T5000'}), (b {id: 'T5001'})
+CREATE (a)-[r:RELATES {
+  id: 'E7301',
+  text: 'Request pulls the refreshed customer segmentation output.',
+  weight: 0.92,
+  tags: ['customer_segment', 'evidence'],
+  created_time: '2025-11-08T11:10:00-05:00'
+}]->(b);
+
+MATCH (a {id: 'T5001'}), (b {id: 'T5002'})
+CREATE (a)-[r:RELATES {
+  id: 'E7302',
+  text: 'Segmentation output is used to compute response lift.',
+  weight: 0.80,
+  tags: ['lift', 'methodology'],
+  created_time: '2025-11-08T11:10:01-05:00'
+}]->(b);
+
+MATCH (a {id: 'T5002'}), (b {id: 'T5003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7303',
+  text: 'Lift results produce segment-level conclusions.',
+  weight: 0.86,
+  tags: ['customer_segment', 'insight'],
+  created_time: '2025-11-08T11:10:02-05:00'
+}]->(b);
+
+MATCH (a {id: 'T5004'}), (b {id: 'T5003'})
+CREATE (a)-[r:RELATES {
+  id: 'E7304',
+  text: 'Campaign timing contextualizes the response lift.',
+  weight: 0.74,
+  tags: ['campaign', 'event'],
+  created_time: '2025-11-08T11:10:03-05:00'
+}]->(b);
+
+MATCH (a {id: 'T5001'}), (b {id: 'T5004'})
+CREATE (a)-[r:RELATES {
+  id: 'E7305',
+  text: 'Segmentation data references the loyalty refresh window.',
+  weight: 0.68,
+  tags: ['loyalty', 'event'],
+  created_time: '2025-11-08T11:10:04-05:00'
+}]->(b);
+
+MATCH (a {id: 'T5000'}), (b {id: 'T5002'})
+CREATE (a)-[r:RELATES {
+  id: 'E7306',
+  text: 'Request drives validation of segment response lift.',
+  weight: 0.78,
+  tags: ['customer_segment', 'validation'],
+  created_time: '2025-11-08T11:10:05-05:00'
+}]->(b);
+
+CREATE INDEX idx_test_userrequest_id    IF NOT EXISTS FOR (n:UserRequest)    ON (n.id);
+CREATE INDEX idx_test_datasource_id     IF NOT EXISTS FOR (n:DataSource)     ON (n.id);
+CREATE INDEX idx_test_agentaction_id    IF NOT EXISTS FOR (n:AgentAction)    ON (n.id);
+CREATE INDEX idx_test_agentanswer_id    IF NOT EXISTS FOR (n:AgentAnswer)    ON (n.id);
+CREATE INDEX idx_test_event_id          IF NOT EXISTS FOR (n:Event)          ON (n.id);
+CREATE INDEX idx_test_userpreference_id IF NOT EXISTS FOR (n:UserPreference) ON (n.id);
