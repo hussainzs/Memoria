@@ -166,3 +166,141 @@ Returns a `dict[str, Any]` with simplified paths and flattened attributes:
 - Update edge assertions to expect `"tags"` field preserved
 - Verify `transfer_energy` has 3 decimal places, `weight` has 2 decimal places
 - Verify text fields have unicode escapes cleaned (e.g., `\u2013` → `-`)
+
+---
+
+### `to_d3()` - BREAKING CHANGE
+
+#### Purpose
+Formats retrieval results for D3.js graph visualization. Optimized to show branching exploration paths from a seed node with minimal frontend parsing required.
+
+#### Old Output Format
+```python
+{
+  "nodes": [
+    {
+      "id": "N3204",
+      "labels": ["AgentAction"],
+      "properties": {
+        "text": "...",
+        "conv_id": "...",
+        "parameter_field": "...",
+        // all properties nested
+      },
+      "activation": 0.73,
+      "score": 0.73
+    }
+  ],
+  "links": [
+    {
+      "source": "N3204",
+      "target": "N3201",
+      "type": "RELATES",
+      "weight": 0.91,
+      "tags": ["trigger", "experiment"],
+      "transfer_energy": 0.040679900903271636,
+      "properties": {
+        "created_time": "...",
+        "id": "E3423",
+        "text": "...",
+        // all properties nested
+      }
+    }
+  ]
+}
+```
+
+#### New Output Format
+Returns a `dict[str, Any]` with simplified, flattened structure optimized for D3.js:
+```python
+{
+  "nodes": [
+    {
+      "id": "N3204",
+      "label": "AgentAction",
+      "is_seed": true,
+      "parameter_field": "{\"discount_pct\":0.05, \"analysis\":[\"CUPED\",\"FE\"], \"clusters\":64}",
+      "conv_id": "2025-11-12_WMT_P3_C32",
+      "status": "complete",
+      "tags": ["pilot_design", "simulation", "revenue_neutrality"],
+      "retrieval_activation": 0.73,
+      "update_time": "2025-11-12T16:43:10-05:00",
+      "ingestion_time": "2025-11-12T16:43:10-05:00",
+      "text": "Design targeted 5% discount pilot..."
+    }
+  ],
+  "edges": [
+    {
+      "source": "N3204",
+      "target": "N3201",
+      "transfer_energy": 0.041,
+      "edge_id": "E3423",
+      "weight": 0.91,
+      "tags": ["trigger", "experiment"],
+      "created_time": "2025-11-12T16:43:25-05:00",
+      "text": "Pilot window triggers experimental design and simulation."
+    }
+  ]
+}
+```
+
+#### Key Changes
+
+**Structure:**
+- Renamed `"links"` → `"edges"` for consistency across all parsers
+- All attributes flattened (no nested `"properties"` dict)
+
+**Nodes:**
+1. **Label singular**: `"label": "AgentAction"` instead of `"labels": ["AgentAction"]`
+2. **Seed marker**: Added `"is_seed": true/false` to identify the seed node for frontend styling
+3. **Flattened properties**: All node attributes at top level
+4. **Special fields by node type**: Included based on node label (parameter_field, analysis_types, etc.)
+5. **Renamed activation**: `"activation"` → `"retrieval_activation"`
+6. **Tags preserved**: For visualization filtering and categorization
+7. **Removed fields**: `"score"` (redundant with retrieval_activation), `"embedding_id"`, `"reasoning_pointer_ids"`
+8. **Text cleaning**: Unicode escapes cleaned for display (e.g., `\u2013` → `-`)
+
+**Edges:**
+1. **D3.js compatibility**: Kept `"source"` and `"target"` (required by D3.js force layouts)
+2. **Renamed ID**: `"id"` → `"edge_id"` (added separately, not replacing source/target)
+3. **Rounded precision**: `transfer_energy` to 3 decimals, `weight` to 2 decimals
+4. **Tags preserved**: For visualization filtering and edge categorization
+5. **Removed fields**: `"type"` (always "RELATES")
+6. **Flattened**: All edge attributes at top level
+7. **Text cleaning**: Unicode escapes cleaned
+
+#### Design Rationale
+
+**D3.js Optimization**: The structure follows D3.js conventions:
+- `nodes` array with `id` field (required)
+- `edges` array with `source` and `target` fields (required for force-directed layouts)
+- String node IDs work seamlessly with modern D3.js (v4+)
+
+**Branching Visualization**: The format naturally supports showing branching exploration:
+- All nodes from all paths are included (deduplicated by ID)
+- All edges from all paths are included (deduplicated by source-target pair)
+- The seed node is marked with `is_seed: true` for special styling
+- D3.js will automatically render the branching structure when given these nodes and edges
+
+**Minimal Frontend Parsing**: Frontend can directly pass this to D3.js force layouts:
+```javascript
+const simulation = d3.forceSimulation(data.nodes)
+  .force("link", d3.forceLink(data.edges).id(d => d.id))
+  .force("charge", d3.forceManyBody())
+  .force("center", d3.forceCenter());
+```
+
+**Attribute Simplification**: Same flattening and cleaning approach as `to_llm_context()` ensures consistency and reduces token overhead if this data is also sent to LLMs for reasoning.
+
+#### Test Migration Guide
+- Update assertions to expect `result["edges"]` instead of `result["links"]`
+- Update node assertions to expect `"label"` (singular) instead of `"labels"` (array)
+- Update node assertions to expect `"is_seed"` boolean field
+- Update node assertions to expect `"retrieval_activation"` instead of `"activation"`
+- Update node assertions to expect flat structure (no nested `"properties"`)
+- Update node assertions to expect `"tags"` field preserved
+- Update edge assertions to expect `"edge_id"` field (in addition to `"source"` and `"target"`)
+- Update edge assertions to expect flat structure (no nested `"properties"`)
+- Update edge assertions to expect `"tags"` field preserved
+- Verify `transfer_energy` has 3 decimal places, `weight` has 2 decimal places
+- Verify `"source"` and `"target"` fields remain unchanged (required for D3.js)

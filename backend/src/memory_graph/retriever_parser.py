@@ -8,60 +8,56 @@ from .models import GraphNode, GraphStep, RetrievalResult
 
 
 def to_d3(result: RetrievalResult) -> dict[str, Any]:
-	nodes_by_id: dict[str, dict[str, Any]] = {}
-	links_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+	"""Format retrieval result for D3.js graph visualization with branching paths."""
+	nodes_by_id: dict[str, GraphNode] = {}
 	activation_by_id: dict[str, float] = {}
-
+	edges_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+	
+	seed_id = result.seed_node.id if result.seed_node is not None else result.seed.node_id
+	
+	# Collect seed node
 	if result.seed_node is not None:
-		nodes_by_id[result.seed_node.id] = {
-			"id": result.seed_node.id,
-			"labels": list(result.seed_node.labels),
-			"properties": dict(result.seed_node.properties),
-			"activation": result.seed.score,
-			"score": result.seed.score,
-		}
+		nodes_by_id[result.seed_node.id] = result.seed_node
 		activation_by_id[result.seed_node.id] = result.seed.score
-
+	
+	# Collect all nodes and edges from paths
 	for path in result.paths:
 		for step in path.steps:
+			# Collect nodes
 			for node in (step.from_node, step.to_node):
 				if node.id not in nodes_by_id:
-					nodes_by_id[node.id] = {
-						"id": node.id,
-						"labels": list(node.labels),
-						"properties": dict(node.properties),
-						"activation": None,
-						"score": None,
-					}
+					nodes_by_id[node.id] = node
+			
+			# Track max activation for to_node
 			activation_by_id[step.to_node.id] = max(
 				activation_by_id.get(step.to_node.id, 0.0),
 				step.transfer_energy,
 			)
-
+			
+			# Collect edges (deduplicate by source, target, type)
 			edge_key = (step.edge.source_id, step.edge.target_id, step.edge.type)
-			if edge_key not in links_by_key:
-				links_by_key[edge_key] = {
-					"source": step.edge.source_id,
-					"target": step.edge.target_id,
-					"type": step.edge.type,
-					"weight": step.edge.weight,
-					"tags": list(step.edge.tags),
-					"transfer_energy": step.transfer_energy,
-					"properties": dict(step.edge.properties),
-				}
+			if edge_key not in edges_by_key:
+				edges_by_key[edge_key] = _create_d3_edge(step)
 			else:
-				links_by_key[edge_key]["transfer_energy"] = max(
-					links_by_key[edge_key].get("transfer_energy", 0.0),
-					step.transfer_energy,
+				# Update with max transfer_energy if edge already exists
+				edges_by_key[edge_key]["transfer_energy"] = max(
+					edges_by_key[edge_key]["transfer_energy"],
+					round(step.transfer_energy, 3),
 				)
-
-	for node_id, activation in activation_by_id.items():
-		if node_id in nodes_by_id:
-			nodes_by_id[node_id]["activation"] = activation
-
+	
+	# Build node list with simplified attributes
+	nodes_list = []
+	for node_id, node in nodes_by_id.items():
+		node_data = _create_d3_node(
+			node,
+			activation_by_id.get(node_id),
+			is_seed=(node_id == seed_id)
+		)
+		nodes_list.append(node_data)
+	
 	return {
-		"nodes": list(nodes_by_id.values()),
-		"links": list(links_by_key.values()),
+		"nodes": nodes_list,
+		"edges": list(edges_by_key.values()),
 	}
 
 
@@ -293,6 +289,88 @@ def _flatten_node_properties(node: GraphNode, activation: float | None) -> dict[
 		flattened["text"] = _clean_unicode_escapes(props["text"])
 
 	return flattened
+
+
+def _create_d3_node(node: GraphNode, activation: float | None, is_seed: bool) -> dict[str, Any]:
+	"""Create simplified node for D3.js with flattened attributes."""
+	props = dict(node.properties)
+	
+	# Basic fields - id and label are required for D3.js
+	node_data: dict[str, Any] = {
+		"id": node.id,
+		"label": node.labels[0] if node.labels else "Node",
+		"is_seed": is_seed,
+	}
+	
+	# Add special fields based on node type
+	special_fields = [
+		"parameter_field", "analysis_types", "metrics",
+		"doc_pointer", "source_type", "relevant_parts",
+		"start_date", "end_date",
+		"user_role", "user_id",
+		"preference_type",
+	]
+	for field in special_fields:
+		if field in props:
+			node_data[field] = props[field]
+	
+	# Common fields
+	for field in ["conv_id", "status"]:
+		if field in props:
+			node_data[field] = props[field]
+	
+	# Tags
+	if "tags" in props:
+		node_data["tags"] = props["tags"]
+	
+	# Activation
+	if activation is not None:
+		node_data["retrieval_activation"] = round(activation, 3)
+	
+	# Timestamps
+	for field in ["update_time", "ingestion_time", "created_time"]:
+		if field in props:
+			node_data[field] = props[field]
+	
+	# Text (clean unicode escapes)
+	if "text" in props:
+		node_data["text"] = _clean_unicode_escapes(props["text"])
+	
+	return node_data
+
+
+def _create_d3_edge(step: GraphStep) -> dict[str, Any]:
+	"""Create simplified edge for D3.js."""
+	edge_props = step.edge.properties
+	
+	# Source and target are required for D3.js force layouts
+	edge_data: dict[str, Any] = {
+		"source": step.edge.source_id,
+		"target": step.edge.target_id,
+		"transfer_energy": round(step.transfer_energy, 3),
+	}
+	
+	# Edge ID
+	if "id" in edge_props:
+		edge_data["edge_id"] = edge_props["id"]
+	
+	# Weight
+	if step.edge.weight is not None:
+		edge_data["weight"] = round(step.edge.weight, 2)
+	
+	# Tags
+	if "tags" in edge_props:
+		edge_data["tags"] = edge_props["tags"]
+	
+	# Created time
+	if "created_time" in edge_props:
+		edge_data["created_time"] = edge_props["created_time"]
+	
+	# Text (clean unicode escapes)
+	if "text" in edge_props:
+		edge_data["text"] = _clean_unicode_escapes(edge_props["text"])
+	
+	return edge_data
 
 
 def _build_edges_for_llm(result: RetrievalResult) -> list[dict[str, Any]]:
