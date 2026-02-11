@@ -85,23 +85,37 @@ def to_llm_context(result: RetrievalResult) -> dict[str, Any]:
 	}
 
 
-def to_debug_cypher(result: RetrievalResult) -> list[str]:
-	queries: list[str] = []
-	for path in result.paths:
-		node_ids: list[str] = []
-		if result.seed_node is not None:
-			node_ids.append(result.seed_node.id)
-		else:
-			node_ids.append(result.seed.node_id)
+def to_debug_cypher(result: RetrievalResult) -> dict[str, Any]:
+	"""Return literal-Cypher for each path plus a single combined view."""
+	seed_id = result.seed_node.id if result.seed_node is not None else result.seed.node_id
+	path_patterns: list[str] = []
+	for path_idx, path in enumerate(result.paths):
+		node_ids = [seed_id]
 		node_ids.extend(step.to_node.id for step in path.steps)
+		node_patterns = [
+			_cypher_node_pattern(f"n{path_idx}_{node_idx}", node_id)
+			for node_idx, node_id in enumerate(node_ids)
+		]
+		path_patterns.append("-[:RELATES]-".join(node_patterns))
 
-		pattern_parts = []
-		for idx, node_id in enumerate(node_ids):
-			param_key = f"id{idx}"
-			pattern_parts.append(f"(n{idx} {{id: ${param_key}}})")
-		pattern = "-[:RELATES]-".join(pattern_parts)
-		queries.append(f"MATCH p = {pattern} RETURN p")
-	return queries
+	individual_paths = [
+		f"MATCH p{idx} = {pattern} RETURN p{idx}"
+		for idx, pattern in enumerate(path_patterns)
+	]
+	if path_patterns:
+		combined = (
+			"MATCH "
+			+ ", ".join(f"p{idx} = {pattern}" for idx, pattern in enumerate(path_patterns))
+			+ " RETURN "
+			+ ", ".join(f"p{idx}" for idx in range(len(path_patterns)))
+		)
+	else:
+		combined = ""
+
+	return {
+		"paths_combined": combined,
+		"individual_paths": individual_paths,
+	}
 
 
 def _format_seed(node: GraphNode) -> str:
@@ -139,3 +153,13 @@ def _truncate(value: str, limit: int) -> str:
 	if len(value) <= limit:
 		return value
 	return value[: limit - 3].rstrip() + "..."
+
+
+def _cypher_node_pattern(alias: str, node_id: str) -> str:
+	escaped = _quote_cypher_literal(node_id)
+	return f"({alias} {{id: {escaped}}})"
+
+
+def _quote_cypher_literal(value: str) -> str:
+	escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+	return f'"{escaped}"'

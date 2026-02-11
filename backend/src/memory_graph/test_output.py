@@ -53,7 +53,7 @@ async def main():
             results.append(result)
         
         # Write parser outputs
-        with open("src/memory_graph/sample_output.txt", "w", encoding="utf-8") as f:
+        with open("src/memory_graph/retriever_sample_output.txt", "w", encoding="utf-8") as f:
             for idx, result in enumerate(results, start=1):
                 f.write(f"{'='*80}\n")
                 f.write(f"RESULT {idx}: Seed {result.seed.node_id} (initial seed score: {result.seed.score})\n")
@@ -74,7 +74,7 @@ async def main():
                 f.write(json.dumps(to_debug_cypher(result), indent=2))
                 f.write("\n\n\n")
         
-        print(f"✓ Output written to src/memory_graph/sample_output.txt")
+        print(f"✓ Output written to src/memory_graph/retriever_sample_output.txt")
         print(f"✓ Total results: {len(results)}")
         
     finally:
