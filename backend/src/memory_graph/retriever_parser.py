@@ -98,7 +98,7 @@ def to_debug_cypher(result: RetrievalResult) -> dict[str, Any]:
 	"""
  		Builds cypher pattern to visualize the retrieved paths in Neo4j Browser.
 		Returns a dict with two keys:
-		- "paths_combined": A single cypher query that shows the full branched single path from the seed node.
+		- "paths_combined": A single cypher query that unions each path to avoid Cartesian products.
 		- "individual_paths": A list of cypher queries, one for each path starting from seed node.
  	"""
 	seed_id = result.seed_node.id if result.seed_node is not None else result.seed.node_id
@@ -117,11 +117,9 @@ def to_debug_cypher(result: RetrievalResult) -> dict[str, Any]:
 		for idx, pattern in enumerate(path_patterns)
 	]
 	if path_patterns:
-		combined = (
-			"MATCH "
-			+ ", ".join(f"p{idx} = {pattern}" for idx, pattern in enumerate(path_patterns))
-			+ " RETURN "
-			+ ", ".join(f"p{idx}" for idx in range(len(path_patterns)))
+		combined = " UNION ".join(
+			f"MATCH p = {pattern} RETURN p"
+			for pattern in path_patterns
 		)
 	else:
 		combined = ""

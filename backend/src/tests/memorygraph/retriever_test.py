@@ -391,7 +391,7 @@ def test_to_llm_context_minimal_sanity():
 
 def test_to_debug_cypher_minimal_sanity():
 	"""Scenario: single-hop result sent to Cypher debug formatter.
-	Expected: one query with n0/n1 id placeholders in the path order.
+	Expected: one query with n0/n1 id placeholders in the path order and UNION-safe combined query.
 	Why: to_debug_cypher maps step ordering to parameterized node IDs.
 	"""
 	seed = SeedInput(node_id="S1", score=0.7)
@@ -422,7 +422,7 @@ def test_to_debug_cypher_minimal_sanity():
 	queries = to_debug_cypher(result)
 
 	assert queries["paths_combined"] == (
-		"MATCH p0 = (n0_0 {id: 'S1'})-[:RELATES]-(n0_1 {id: 'N1'}) RETURN p0"
+		"MATCH p = (n0_0 {id: 'S1'})-[:RELATES]-(n0_1 {id: 'N1'}) RETURN p"
 	)
 	assert queries["individual_paths"] == [
 		"MATCH p0 = (n0_0 {id: 'S1'})-[:RELATES]-(n0_1 {id: 'N1'}) RETURN p0"
@@ -637,12 +637,13 @@ def test_to_debug_cypher_multi_path():
 	assert "n1_0" in queries["individual_paths"][1]
 	assert "n1_1" in queries["individual_paths"][1]
 	assert "n1_2" in queries["individual_paths"][1]
+	assert queries["paths_combined"].count(" UNION ") == 1
 
 
 def test_to_debug_cypher_combined_paths():
 	"""Scenario: multiple paths from same seed should be combined into one MATCH statement.
-	Expected: paths_combined contains single MATCH with all paths comma-separated, single RETURN with all path variables.
-	Why: paths_combined visualizes all branches from seed in one query for Neo4j Browser.
+	Expected: paths_combined is a UNION of MATCH queries to avoid Cartesian products.
+	Why: paths_combined visualizes all branches from seed in one query for Neo4j Browser without row explosion.
 	"""
 	seed = SeedInput(node_id="SEED123", score=0.8)
 	seed_node = _node("SEED123", "Seed")
@@ -675,28 +676,21 @@ def test_to_debug_cypher_combined_paths():
 
 	queries = to_debug_cypher(result)
 
-	# Test paths_combined structure
 	combined = queries["paths_combined"]
-	
-	# Should have exactly one MATCH keyword and one RETURN keyword
-	assert combined.count("MATCH") == 1
-	assert combined.count("RETURN") == 1
-	
-	# Should contain both path patterns comma-separated
-	assert "p0 =" in combined
-	assert "p1 =" in combined
-	assert ", p1 =" in combined  # comma before second path
-	
+
+	# Should be UNION-based with a shared path variable
+	assert combined.count("MATCH ") == 2
+	assert combined.count(" RETURN ") == 2
+	assert " UNION " in combined
+	assert "MATCH p =" in combined
+
 	# Should contain literal IDs (not parameters)
 	assert '"SEED123"' in combined or "'SEED123'" in combined
 	assert '"N1"' in combined or "'N1'" in combined
 	assert '"N2"' in combined or "'N2'" in combined
-	
+
 	# Should NOT contain parameterized IDs
 	assert "$id" not in combined
-	
-	# Should return both paths
-	assert "RETURN p0, p1" in combined
 
 
 def test_to_debug_cypher_literal_id_escaping():
@@ -738,7 +732,7 @@ def test_to_debug_cypher_literal_id_escaping():
 	# Should be valid Cypher syntax (basic checks)
 	assert combined.startswith("MATCH ")
 	assert " RETURN " in combined
-	assert "p0 =" in combined
+	assert "MATCH p =" in combined
 
 
 def test_to_debug_cypher_neo4j_ready_output():
@@ -789,10 +783,10 @@ def test_to_debug_cypher_neo4j_ready_output():
 	
 	# Test combined paths is Neo4j-ready
 	combined = queries["paths_combined"]
-	assert combined.count("MATCH ") == 1  # Single MATCH
-	assert combined.count(" RETURN ") == 1  # Single RETURN
-	assert ", p1 =" in combined  # Comma-separated paths
-	assert "p0, p1" in combined  # Both paths in RETURN
+	assert combined.count("MATCH ") == 2  # One MATCH per path
+	assert combined.count(" RETURN ") == 2  # One RETURN per path
+	assert " UNION " in combined  # UNION separator
+	assert "MATCH p =" in combined  # Shared path variable
 	# Should be directly executable in Neo4j Desktop
 	assert "\\" not in combined.replace("\\\\", "").replace("\\'", "")
 
